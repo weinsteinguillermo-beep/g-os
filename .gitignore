@@ -1,0 +1,24 @@
+# G-OS local/runtime files
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
+
+# Local environment
+.env
+.env.*
+*.local
+
+# Dependency folders if future tooling is added
+node_modules/
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+

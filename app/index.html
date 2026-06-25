@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#1f5f57">
+    <meta name="description" content="G-OS v0.1: sistema operativo ejecutivo de Guillermo Weinstein.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="G-OS">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>G-OS v0.1</title>
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">G-OS</p>
+          <h1>Buenos dias Guillermo</h1>
+        </div>
+        <div class="date-pill" id="todayLabel">Hoy</div>
+      </header>
+
+      <section class="hero-brief">
+        <p class="section-label">Recomendacion del dia</p>
+        <h2 id="dailyRecommendation">Elegir un foco ejecutivo antes de abrir nuevos frentes.</h2>
+        <p id="dailyQuestion">La unica pregunta importante: que decision desbloquea mas valor hoy?</p>
+      </section>
+
+      <section class="mode-switch" aria-label="Modo de uso">
+        <button class="secondary-button compact active-mode" type="button" id="morningMode">Modo manana</button>
+        <button class="secondary-button compact" type="button" id="closeMode">Modo cierre</button>
+      </section>
+
+      <nav class="module-nav" aria-label="Modulos de G-OS">
+        <button class="nav-button active" type="button" data-target="briefing">Briefing</button>
+        <button class="nav-button" type="button" data-target="idea">Idea</button>
+        <button class="nav-button" type="button" data-target="projects">Proyectos</button>
+        <button class="nav-button" type="button" data-target="decisions">Decisiones</button>
+        <button class="nav-button" type="button" data-target="codex">Codex</button>
+        <button class="nav-button" type="button" data-target="closeDay">Cierre</button>
+      </nav>
+
+      <section class="data-tools" aria-label="Datos locales">
+        <button class="secondary-button compact" type="button" id="exportData">Exportar datos</button>
+        <button class="secondary-button compact" type="button" id="importData">Importar datos</button>
+        <input id="importFile" type="file" accept="application/json,.json" hidden>
+        <p class="status-note" id="dataStatus"></p>
+      </section>
+
+      <section class="module-panel active" id="briefing" aria-labelledby="briefingTitle">
+        <div class="panel-heading">
+          <p class="section-label">Daily Briefing</p>
+          <h2 id="briefingTitle">Panel ejecutivo</h2>
+        </div>
+        <div class="brief-grid" id="briefingGrid"></div>
+      </section>
+
+      <section class="module-panel" id="idea" aria-labelledby="ideaTitle">
+        <div class="panel-heading">
+          <p class="section-label">Nueva Idea</p>
+          <h2 id="ideaTitle">Capturar rapido</h2>
+        </div>
+        <button class="idea-trigger" type="button" id="focusIdea">Nueva idea</button>
+        <label class="input-label" for="ideaInput">Idea rapida</label>
+        <textarea id="ideaInput" rows="4" placeholder="Escribi la idea en bruto. Despues se clasifica."></textarea>
+        <label class="input-label" for="ideaStatus">Estado</label>
+        <select id="ideaStatus" class="status-select">
+          <option value="Nueva">Nueva</option>
+          <option value="Incubadora">Incubadora</option>
+          <option value="Proyecto">Proyecto</option>
+        </select>
+        <button class="primary-button" type="button" id="saveIdea">Guardar idea</button>
+        <h3 class="subheading">Ultimas ideas</h3>
+        <div class="saved-list" id="ideasList"></div>
+      </section>
+
+      <section class="module-panel" id="projects" aria-labelledby="projectsTitle">
+        <div class="panel-heading">
+          <p class="section-label">Proyectos</p>
+          <h2 id="projectsTitle">Estado ejecutivo</h2>
+        </div>
+        <div class="list-stack" id="projectsList"></div>
+      </section>
+
+      <section class="module-panel" id="decisions" aria-labelledby="decisionsTitle">
+        <div class="panel-heading">
+          <p class="section-label">Decisiones</p>
+          <h2 id="decisionsTitle">Lo que requiere criterio</h2>
+        </div>
+        <div class="list-stack" id="decisionsList"></div>
+      </section>
+
+      <section class="module-panel" id="codex" aria-labelledby="codexTitle">
+        <div class="panel-heading">
+          <p class="section-label">Codex</p>
+          <h2 id="codexTitle">Trabajos en curso</h2>
+        </div>
+        <div class="list-stack" id="codexList"></div>
+        <button class="primary-button" type="button" id="newMission">Nueva mision</button>
+        <button class="secondary-button" type="button" id="copyMission">Copiar mision Codex</button>
+        <p class="status-note" id="missionStatus"></p>
+        <pre class="prompt-output" id="missionPrompt" aria-live="polite"></pre>
+      </section>
+
+      <section class="module-panel" id="closeDay" aria-labelledby="closeDayTitle">
+        <div class="panel-heading">
+          <p class="section-label">Cierre del dia</p>
+          <h2 id="closeDayTitle">Resumen para manana</h2>
+        </div>
+        <label class="input-label" for="dailyLearning">Aprendizaje del dia</label>
+        <textarea id="dailyLearning" rows="4" placeholder="Que aprendio G-OS hoy?"></textarea>
+        <button class="primary-button" type="button" id="saveLearning">Guardar aprendizaje</button>
+        <button class="secondary-button" type="button" id="copyCloseDay">Copiar cierre del dia</button>
+        <p class="status-note" id="closeStatus"></p>
+        <div class="brief-grid" id="closeDayGrid"></div>
+      </section>
+    </main>
+
+    <script src="./data.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
