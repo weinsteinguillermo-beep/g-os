@@ -22,11 +22,32 @@
           <h1>Buenos dias Guillermo</h1>
         </div>
         <div class="system-status">
-          <div class="active-indicator"><span aria-hidden="true"></span>G-OS activo</div>
+          <div class="active-indicator heart-indicator"><span aria-hidden="true"></span><strong id="heartStateLabel">❤️ G-OS ACTIVO</strong></div>
+          <div class="sync-label">Ultimo latido: <strong id="heartBeatLabel">sin latidos</strong></div>
           <div class="sync-label">Ultima sincronizacion: <strong id="lastSyncLabel">Hoy</strong></div>
           <div class="date-pill" id="todayLabel">Hoy</div>
         </div>
       </header>
+
+      <section class="heart-panel" aria-label="Latido G-OS">
+        <div>
+          <p class="section-label">Estado vivo</p>
+          <h2 id="heartMessage">❤️ Todo bajo control.</h2>
+          <p id="tranquilityLabel">🟢 Todo bajo control.</p>
+          <p class="heart-summary" id="heartSummary">Latido listo.</p>
+          <button class="secondary-button compact" type="button" id="beatNow">Latir ahora</button>
+          <p class="status-note" id="beatStatus"></p>
+        </div>
+        <div class="tranquility-score">
+          <span id="tranquilityScore">100</span>
+          <small>Indice de Tranquilidad</small>
+        </div>
+      </section>
+
+      <section class="heart-change" aria-label="Que cambio">
+        <p class="section-label">Que cambio</p>
+        <div class="brief-grid" id="heartChangeGrid"></div>
+      </section>
 
       <section class="hero-brief">
         <p class="section-label">Recomendacion del dia</p>
@@ -45,16 +66,28 @@
         <button class="nav-button" type="button" data-target="idea">Idea</button>
         <button class="nav-button" type="button" data-target="projects">Proyectos</button>
         <button class="nav-button" type="button" data-target="decisions">Decisiones</button>
+        <button class="nav-button" type="button" data-target="executiveAgenda">Agenda</button>
         <button class="nav-button" type="button" data-target="codex">Codex</button>
+        <button class="nav-button" type="button" data-target="operationalDna">ADN</button>
         <button class="nav-button" type="button" data-target="context">Contexto</button>
         <button class="nav-button" type="button" data-target="closeDay">Cierre</button>
       </nav>
 
       <section class="data-tools" aria-label="Datos locales">
+        <button class="secondary-button compact" type="button" id="loadDemo">Cargar demo</button>
+        <button class="ghost-button compact" type="button" id="clearDemo">Limpiar demo</button>
         <button class="secondary-button compact" type="button" id="exportData">Exportar datos</button>
         <button class="secondary-button compact" type="button" id="importData">Importar datos</button>
         <input id="importFile" type="file" accept="application/json,.json" hidden>
         <p class="status-note" id="dataStatus"></p>
+        <div class="qa-checklist" id="qaChecklist" aria-label="Checklist QA">
+          <span>Evento entra</span>
+          <span>ADN recuerda</span>
+          <span>Seguimiento aparece</span>
+          <span>Score cambia</span>
+          <span>Briefing cambia</span>
+          <span>Codex se genera</span>
+        </div>
       </section>
 
       <section class="module-panel active" id="briefing" aria-labelledby="briefingTitle">
@@ -63,6 +96,10 @@
           <h2 id="briefingTitle">Panel ejecutivo</h2>
         </div>
         <div class="brief-grid" id="briefingGrid"></div>
+        <div class="heart-history">
+          <h3>Historial del corazon</h3>
+          <div class="list-stack" id="heartHistoryList"></div>
+        </div>
       </section>
 
       <section class="module-panel" id="liveInput" aria-labelledby="liveInputTitle">
@@ -122,6 +159,14 @@
         <div class="list-stack" id="decisionsList"></div>
       </section>
 
+      <section class="module-panel" id="executiveAgenda" aria-labelledby="executiveAgendaTitle">
+        <div class="panel-heading">
+          <p class="section-label">Agenda Ejecutiva</p>
+          <h2 id="executiveAgendaTitle">Prioridad real</h2>
+        </div>
+        <div class="list-stack" id="executiveAgendaList"></div>
+      </section>
+
       <section class="module-panel" id="codex" aria-labelledby="codexTitle">
         <div class="panel-heading">
           <p class="section-label">Codex</p>
@@ -145,6 +190,19 @@
         <div class="brief-grid" id="contextGrid"></div>
       </section>
 
+      <section class="module-panel" id="operationalDna" aria-labelledby="operationalDnaTitle">
+        <div class="panel-heading">
+          <p class="section-label">ADN Operativo</p>
+          <h2 id="operationalDnaTitle">Memoria ejecutiva</h2>
+        </div>
+        <label class="input-label" for="dnaSearch">Preguntarle al ADN</label>
+        <input id="dnaSearch" class="text-input" type="text" placeholder="Ej: Que sabemos de Ponsse?">
+        <button class="secondary-button" type="button" id="runDnaSearch">Consultar ADN</button>
+        <div class="live-result" id="dnaSearchResult"></div>
+        <div class="list-stack" id="companyTimeline"></div>
+        <div class="brief-grid dna-grid" id="dnaGrid"></div>
+      </section>
+
       <section class="module-panel" id="closeDay" aria-labelledby="closeDayTitle">
         <div class="panel-heading">
           <p class="section-label">Cierre del dia</p>
@@ -161,6 +219,9 @@
 
     <script src="./data.js"></script>
     <script src="./event_log.js"></script>
+    <script src="./knowledge_registry.js"></script>
+    <script src="./experience_engine.js"></script>
+    <script src="./operational_dna.js"></script>
     <script src="./observer_bus.js"></script>
     <script src="./connectors/gmail_connector.js"></script>
     <script src="./connectors/calendar_connector.js"></script>
@@ -172,9 +233,11 @@
     <script src="./connectors/microsoft_graph/outlook_observer.js"></script>
     <script src="./live_input.js"></script>
     <script src="./context_engine.js"></script>
+    <script src="./decision_engine.js"></script>
     <script src="./chief_of_staff.js"></script>
     <script src="./system_clock.js"></script>
     <script src="./life_engine.js"></script>
+    <script src="./life_loop_engine.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

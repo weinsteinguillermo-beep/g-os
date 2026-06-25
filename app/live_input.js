@@ -1,6 +1,6 @@
 (function () {
   const PROJECT_RULES = [
-    { project: "Mercado Forestal", terms: ["brasil", "master", "florestal", "mercado forestal"] },
+    { project: "Mercado Forestal", terms: ["brasil", "master", "florestal", "mercado forestal", "ponsse"] },
     { project: "GB Sudamerica", terms: ["gb"] },
     { project: "Outdoor Import", terms: ["outdoor"] },
     { project: "URUFOREST", terms: ["uruforest"] },
@@ -22,6 +22,7 @@
     "contrato",
     "master",
     "florestal",
+    "ponsse",
     "quantum",
     "log max",
     "ecolog"

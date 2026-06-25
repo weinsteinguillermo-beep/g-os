@@ -75,6 +75,96 @@ button {
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
+.heart-panel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.heart-panel h2,
+.heart-panel p {
+  margin-bottom: 0;
+}
+
+.heart-summary {
+  margin: 8px 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#beatNow {
+  width: fit-content;
+  min-height: 42px;
+  margin-top: 10px;
+}
+
+#beatStatus {
+  margin-top: 8px;
+}
+
+.heart-change {
+  margin: 0 0 14px;
+}
+
+.heart-change .brief-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.heart-change-card {
+  padding: 12px;
+}
+
+.heart-change-card h3 {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.heart-change-card p {
+  margin-bottom: 0;
+  font-size: 14px;
+}
+
+.tranquility-score {
+  display: grid;
+  justify-items: center;
+  min-width: 86px;
+  border-left: 1px solid var(--line);
+  padding-left: 14px;
+}
+
+.tranquility-score span {
+  color: var(--accent);
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tranquility-score small {
+  max-width: 82px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+body[data-heart-state="emergencia"] .heart-panel,
+body[data-heart-state="emergencia"] .active-indicator span {
+  border-color: var(--danger);
+}
+
+body[data-heart-state="accion"] .heart-panel,
+body[data-heart-state="accion"] .active-indicator span {
+  border-color: var(--warning);
+}
+
 .sync-label strong {
   color: var(--ink);
 }
@@ -140,6 +230,35 @@ h3 {
   font-size: 13px;
 }
 
+.score-badge,
+.level-chip {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.score-badge {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.level-critico,
+.level-alto {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.level-medio {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
 .hero-brief,
 .module-panel {
   border: 1px solid var(--line);
@@ -159,7 +278,7 @@ h3 {
 
 .module-nav {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 6px;
   margin: 16px 0;
   padding: 4px;
@@ -222,9 +341,25 @@ h3 {
   margin: -4px 0 16px;
 }
 
-.data-tools .status-note {
+.data-tools .status-note,
+.qa-checklist {
   grid-column: 1 / -1;
   margin-top: 0;
+}
+
+.qa-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.qa-checklist span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 8px;
+  background: var(--surface);
 }
 
 .brief-grid {
@@ -247,6 +382,29 @@ h3 {
 
 .brief-card li + li {
   margin-top: 8px;
+}
+
+.heart-history {
+  margin-top: 18px;
+}
+
+.heartbeat-row p {
+  margin-bottom: 6px;
+}
+
+.followup-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.followup-item:first-of-type {
+  border-top: 0;
+}
+
+.followup-item p {
+  margin-bottom: 0;
 }
 
 .row-header {
@@ -324,6 +482,28 @@ textarea {
   margin-top: 14px;
 }
 
+.dna-editor {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.dna-editor-card .status-select {
+  margin-bottom: 0;
+}
+
+.dna-company-button {
+  width: 100%;
+  margin: 8px 0 0;
+  justify-content: flex-start;
+}
+
+#companyTimeline {
+  margin: 14px 0;
+}
+
 .status-select {
   width: 100%;
   min-height: 48px;
@@ -380,6 +560,14 @@ select:focus {
   margin-top: 14px;
 }
 
+.dna-actions {
+  grid-template-columns: 1fr;
+}
+
+.followup-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
 .two-actions {
   grid-template-columns: 1fr 1fr;
 }
@@ -423,6 +611,11 @@ select:focus {
   margin-top: 10px;
 }
 
+#runDnaSearch {
+  width: 100%;
+  margin-top: 10px;
+}
+
 .prompt-output {
   display: block;
   max-height: 360px;
@@ -441,6 +634,7 @@ select:focus {
 
 body[data-mode="morning"] .nav-button[data-target="closeDay"],
 body[data-mode="morning"] .nav-button[data-target="context"],
+body[data-mode="morning"] .nav-button[data-target="operationalDna"],
 body[data-mode="morning"] .nav-button[data-target="liveInput"] {
   display: none;
 }
@@ -450,6 +644,8 @@ body[data-mode="close"] .data-tools,
 body[data-mode="close"] .nav-button[data-target="liveInput"],
 body[data-mode="close"] .nav-button[data-target="briefing"],
 body[data-mode="close"] .nav-button[data-target="projects"],
+body[data-mode="close"] .nav-button[data-target="executiveAgenda"],
+body[data-mode="close"] .nav-button[data-target="operationalDna"],
 body[data-mode="close"] .nav-button[data-target="context"] {
   display: none;
 }
@@ -468,12 +664,24 @@ body[data-mode="close"] .nav-button[data-target="context"] {
   }
 
   .hero-brief,
+  .heart-panel,
   .module-panel {
     padding: 18px 16px;
   }
 
+  .heart-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .tranquility-score {
+    justify-items: start;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 12px 0 0;
+  }
+
   .module-nav {
-    grid-template-columns: repeat(8, max-content);
+    grid-template-columns: repeat(10, max-content);
     overflow-x: auto;
   }
 
@@ -483,6 +691,10 @@ body[data-mode="close"] .nav-button[data-target="context"] {
   }
 
   .brief-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .heart-change .brief-grid {
     grid-template-columns: 1fr;
   }
 }

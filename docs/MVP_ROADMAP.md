@@ -188,6 +188,45 @@ Incluye:
 
 Estado: implementado localmente sin IA, APIs ni conectores reales.
 
+## v0.17 Decision Engine Local
+
+Objetivo: ordenar automaticamente que merece la atencion ejecutiva de Guillermo cuando llegan eventos nuevos.
+
+Incluye:
+
+- `app/decision_engine.js`;
+- `app/decision_engine.tests.js`;
+- funcion `calculateDecisionScore()`;
+- calculo por impacto economico, urgencia, cliente estrategico, proyecto estrategico, tiempo sin movimiento, relaciones, prioridad manual, observaciones recientes y estado;
+- clasificacion CRITICO, ALTO, MEDIO y BAJO;
+- Agenda Ejecutiva en el dashboard;
+- integracion con Chief of Staff;
+- Daily Briefing regenerado por Decision Score;
+- documentacion `docs/DECISION_ENGINE_V01.md`;
+- prueba con Ponsse Brasil, Outdoor Import y URUFOREST.
+
+Estado: implementado localmente sin IA, APIs ni backend.
+
+## v0.18 ADN Operativo Local
+
+Objetivo: convertir eventos, cierres y decisiones en memoria ejecutiva permanente.
+
+Incluye:
+
+- `app/knowledge_registry.js`;
+- `app/experience_engine.js`;
+- `app/operational_dna.js`;
+- registro local de personas, empresas, proyectos, decisiones y aprendizajes;
+- timeline por empresa;
+- modulo visual `ADN`;
+- busqueda local sobre la memoria;
+- integracion con Observer Bus;
+- integracion con cierre del dia;
+- exportacion e importacion del ADN Operativo;
+- documentacion `docs/ADN_OPERATIVO_V01.md`.
+
+Estado: implementado localmente sin IA, APIs ni backend.
+
 ## v0.3 Persistencia Real Minima
 
 Objetivo: guardar ideas, decisiones y proyectos en una fuente simple.

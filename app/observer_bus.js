@@ -55,6 +55,7 @@
           const emitted = connector.emitObservation(normalized);
           const observation = normalizeObservation(emitted);
           window.GOSEventLog.append(observation);
+          if (window.GOSOperationalDNA) window.GOSOperationalDNA.rememberExperience(observation);
           observations.push(observation);
         });
       });
@@ -77,6 +78,7 @@
           const emitted = connector.emitObservation(normalized);
           const observation = normalizeObservation(emitted);
           window.GOSEventLog.append(observation);
+          if (window.GOSOperationalDNA) window.GOSOperationalDNA.rememberExperience(observation);
           observations.push(observation);
         });
       }
@@ -96,6 +98,7 @@
     function recordObservation(raw) {
       const observation = normalizeObservation(raw);
       window.GOSEventLog.append(observation);
+      if (window.GOSOperationalDNA) window.GOSOperationalDNA.rememberExperience(observation);
 
       const state = readState();
       state.lastCheck = now();

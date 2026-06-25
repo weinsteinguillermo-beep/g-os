@@ -172,6 +172,12 @@
     return "Recomiendo mantener el dia simple: una decision, una idea y un proximo paso.";
   }
 
+  function buildRecommendationFromAgenda(agenda) {
+    const first = agenda && agenda[0];
+    if (!first) return null;
+    return `Recomiendo atender primero: ${first.title}. ${first.recommendedAction}`;
+  }
+
   function observationScore(observation) {
     return scoreItem({
       context: observation.title,
@@ -197,8 +203,23 @@
     const aprendizajes = input.aprendizajes || input.learnings || [];
     const observations = input.observaciones || input.observations || [];
     const contextGraph = input.contextGraph || null;
+    const executiveAgenda = window.GOSDecisionEngine
+      ? window.GOSDecisionEngine.buildExecutiveAgenda(input)
+      : [];
 
-    const visibleDecisions = rankWithContext(
+    const agendaDecisions = executiveAgenda
+      .filter((item) => item.type === "decision")
+      .slice(0, 3)
+      .map((item) => ({
+        ...item.source,
+        chiefScore: item.decisionScore,
+        decisionScore: item.decisionScore,
+        level: item.level,
+        reason: item.reason,
+        recommendedAction: item.recommendedAction
+      }));
+
+    const visibleDecisions = agendaDecisions.length ? agendaDecisions : rankWithContext(
       decisions.filter((decision) => decision.state !== "Archivada"),
       contextGraph
     ).slice(0, 3);
@@ -211,7 +232,7 @@
     const riskSource = rankWithContext([...visibleDecisions, ...visibleProjects, ...visibleObservations], contextGraph).slice(0, 2);
     const risks = riskSource.map(buildRisk).slice(0, 2);
     const opportunities = [buildOpportunity(ideas, projects)].filter(Boolean).slice(0, 1);
-    const recomendacion = buildRecommendation(visibleDecisions, visibleProjects);
+    const recomendacion = buildRecommendationFromAgenda(executiveAgenda) || buildRecommendation(visibleDecisions, visibleProjects);
 
     return {
       fecha: formatDate(),
@@ -223,6 +244,7 @@
       oportunidades: opportunities,
       proyectos: visibleProjects,
       observaciones: visibleObservations,
+      agendaEjecutiva: executiveAgenda.slice(0, 5),
       aprendizajes: aprendizajes.slice(-3),
       recomendacion
     };

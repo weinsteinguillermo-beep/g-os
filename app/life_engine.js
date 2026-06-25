@@ -106,6 +106,10 @@
     state.lastSync = clock.lastSync;
     writeLife(state);
 
+    if (window.GOSOperationalDNA) {
+      window.GOSOperationalDNA.recordDailyClose(input, summary);
+    }
+
     return {
       summary,
       clock
@@ -123,4 +127,3 @@
     getState
   };
 })();
-
