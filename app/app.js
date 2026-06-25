@@ -53,6 +53,8 @@
   const outlookTenantId = document.getElementById("outlookTenantId");
   const outlookRedirectUri = document.getElementById("outlookRedirectUri");
   const outlookResult = document.getElementById("outlookResult");
+  const cognitiveMailSummary = document.getElementById("cognitiveMailSummary");
+  const cognitiveMailGrid = document.getElementById("cognitiveMailGrid");
   const desktopObserverStatus = document.getElementById("desktopObserverStatus");
   const desktopObserverLastReview = document.getElementById("desktopObserverLastReview");
   const desktopObserverLastEmail = document.getElementById("desktopObserverLastEmail");
@@ -394,6 +396,107 @@
     outlookResult.appendChild(card);
   }
 
+  function upsertCreatedDecision(decision) {
+    if (!decision) return false;
+    const decisions = loadJson(createdDecisionKey, []);
+    if (decisions.some((item) => item.id === decision.id || item.sourceObservationId === decision.sourceObservationId)) return false;
+    decisions.unshift(decision);
+    saveJson(createdDecisionKey, decisions);
+    return true;
+  }
+
+  function upsertFollowup(followup) {
+    if (!followup) return false;
+    const followups = getFollowups();
+    if (followups.some((item) => item.id === followup.id || item.sourceObservationId === followup.sourceObservationId)) return false;
+    followups.unshift(followup);
+    saveFollowups(followups);
+    return true;
+  }
+
+  function processCognitiveMailObservation(rawObservation) {
+    if (!window.GOSCognitiveMailEngine) {
+      return {
+        observation: rawObservation,
+        analysis: null,
+        followupCreated: false,
+        decisionCreated: false
+      };
+    }
+
+    const result = window.GOSCognitiveMailEngine.processEmail(rawObservation);
+    const observation = observerBus.recordObservation(result.observation);
+    const followupCreated = upsertFollowup(result.followup);
+    const decisionCreated = upsertCreatedDecision(result.decision);
+
+    if (result.analysis && window.GOSKnowledgeRegistry) {
+      const extract = result.analysis.extract;
+      window.GOSKnowledgeRegistry.upsert("empresas", extract.empresa, {
+        nombre: extract.empresa,
+        relacion: extract.prioridad === "HIGH" ? "Estrategica" : "Operativa",
+        proyectos: [extract.proyecto],
+        oportunidades: result.analysis.categories.includes("Oportunidad") ? [extract.temaPrincipal] : [],
+        problemas: result.analysis.categories.includes("Problema") ? [extract.temaPrincipal] : [],
+        historialEntrada: {
+          id: observation.id,
+          title: extract.temaPrincipal,
+          description: observation.description,
+          type: result.analysis.categories.join(", "),
+          timestamp: observation.timestamp
+        }
+      }, `Cognitive Mail actualizo empresa: ${extract.empresa}`);
+      if (extract.persona) {
+        window.GOSKnowledgeRegistry.upsert("personas", extract.persona, {
+          nombre: extract.persona,
+          empresa: extract.empresa,
+          ultimoContacto: observation.timestamp,
+          nivelEstrategico: extract.prioridad === "HIGH" ? "Alto" : "Medio",
+          compromisos: result.followup ? [result.followup.motivo] : [],
+          historialEntrada: {
+            id: observation.id,
+            title: extract.temaPrincipal,
+            description: observation.description,
+            timestamp: observation.timestamp
+          }
+        }, `Cognitive Mail actualizo persona: ${extract.persona}`);
+      }
+    }
+
+    return {
+      observation,
+      analysis: result.analysis,
+      followupCreated,
+      decisionCreated,
+      followup: result.followup,
+      decision: result.decision
+    };
+  }
+
+  function renderCognitiveMailSummary(results) {
+    const processed = (results || []).filter((result) => result.analysis);
+    const summary = window.GOSCognitiveMailEngine ? window.GOSCognitiveMailEngine.summarize(processed) : null;
+    cognitiveMailGrid.innerHTML = "";
+
+    if (!summary) {
+      cognitiveMailSummary.textContent = "Sin motor cognitivo disponible.";
+      return;
+    }
+
+    cognitiveMailSummary.textContent = summary.text;
+    [
+      ["Categorias", Object.entries(summary.grouped).map(([key, value]) => `${key}: ${value}`).join(" · ") || "Sin categorias"],
+      ["Oportunidades", String(summary.opportunities)],
+      ["Riesgos", String(summary.risks)],
+      ["Seguimientos", String(summary.followups)],
+      ["Decision clave", summary.topDecision || "Sin decision sugerida"]
+    ].forEach(([label, value]) => {
+      const card = makeElement("article", "brief-card");
+      card.appendChild(makeElement("h3", null, label));
+      card.appendChild(makeElement("p", null, value));
+      cognitiveMailGrid.appendChild(card);
+    });
+  }
+
   async function connectOutlook() {
     const modules = getOutlookModules();
     if (!modules.auth || !modules.config) {
@@ -433,10 +536,11 @@
       const emails = await modules.connector.readLatestEmails(10);
       const observations = emails.map((email) => {
         const observation = modules.connector.emitObservationFromEmail(email);
-        return observerBus.recordObservation(observation);
+        return processCognitiveMailObservation(observation);
       });
-      renderOutlookResult(emails, observations);
-      renderOutlookStatus(`${observations.length} observaciones Outlook generadas.`);
+      renderOutlookResult(emails, observations.map((result) => result.observation));
+      renderCognitiveMailSummary(observations);
+      renderOutlookStatus(`${observations.length} correos comprendidos por G-OS.`);
       runDayRoutine("outlook");
       const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
       renderAll();
@@ -513,9 +617,10 @@
       const known = new Set(processedIds);
       const observations = Array.isArray(queue.observations) ? queue.observations : [];
       const newObservations = observations.filter((observation) => observation && observation.id && !known.has(observation.id));
+      const cognitiveResults = [];
 
       newObservations.forEach((observation) => {
-        observerBus.recordObservation(observation);
+        cognitiveResults.push(processCognitiveMailObservation(observation));
         known.add(observation.id);
       });
 
@@ -536,7 +641,8 @@
       if (queue.error) {
         desktopObserverNote.textContent = queue.error;
       } else if (newObservations.length) {
-        desktopObserverNote.textContent = "Correo detectado. G-OS actualizo contexto, ADN y briefing.";
+        renderCognitiveMailSummary(cognitiveResults);
+        desktopObserverNote.textContent = "Correo detectado. G-OS clasifico, extrajo entidades y actualizo briefing.";
         runDayRoutine("outlook_desktop");
         const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
         renderAll();

@@ -411,6 +411,10 @@ h3 {
   margin-top: 14px;
 }
 
+.cognitive-mail-card {
+  margin-top: 14px;
+}
+
 .observer-status-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

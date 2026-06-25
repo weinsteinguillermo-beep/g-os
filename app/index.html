@@ -144,6 +144,12 @@
           <button class="ghost-button compact" type="button" id="disconnectOutlook">Desconectar</button>
         </div>
         <div class="live-result" id="outlookResult"></div>
+        <div class="row-card cognitive-mail-card">
+          <p class="section-label">Cognitive Mail Engine</p>
+          <h3>Conocimiento detectado</h3>
+          <p id="cognitiveMailSummary" class="status-note">Sin correos cognitivos procesados todavia.</p>
+          <div class="brief-grid" id="cognitiveMailGrid"></div>
+        </div>
 
         <div class="row-card desktop-observer-card">
           <p class="section-label">Outlook Desktop Observer</p>
@@ -272,6 +278,7 @@
     <script src="./connectors/microsoft_graph/microsoft_graph_config.js"></script>
     <script src="./connectors/microsoft_graph/microsoft_graph_auth.js"></script>
     <script src="./connectors/microsoft_graph/outlook_real_connector.js"></script>
+    <script src="./cognitive_mail_engine.js"></script>
     <script src="./live_input.js"></script>
     <script src="./context_engine.js"></script>
     <script src="./decision_engine.js"></script>
