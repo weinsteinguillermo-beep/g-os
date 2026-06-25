@@ -144,6 +144,25 @@
           <button class="ghost-button compact" type="button" id="disconnectOutlook">Desconectar</button>
         </div>
         <div class="live-result" id="outlookResult"></div>
+
+        <div class="row-card desktop-observer-card">
+          <p class="section-label">Outlook Desktop Observer</p>
+          <h3>Observer nativo Windows</h3>
+          <div class="observer-status-grid">
+            <p><strong>Estado:</strong> <span id="desktopObserverStatus">Esperando</span></p>
+            <p><strong>Ultima revision:</strong> <span id="desktopObserverLastReview">Sin revisar</span></p>
+            <p><strong>Ultimo correo:</strong> <span id="desktopObserverLastEmail">Sin correos detectados</span></p>
+            <p><strong>Procesados:</strong> <span id="desktopObserverCount">0</span></p>
+          </div>
+          <label class="input-label" for="desktopObserverInterval">Intervalo de lectura local</label>
+          <input id="desktopObserverInterval" class="text-input" type="number" min="5" max="300" value="30">
+          <div class="button-row two-actions">
+            <button class="primary-button compact" type="button" id="startDesktopObserver">Iniciar Observer</button>
+            <button class="ghost-button compact" type="button" id="stopDesktopObserver">Detener Observer</button>
+          </div>
+          <p class="status-note" id="desktopObserverNote">Para observar Outlook Desktop, ejecutar tambien desktop_observers/START_OUTLOOK_DESKTOP_OBSERVER.cmd.</p>
+          <div class="live-result" id="desktopObserverResult"></div>
+        </div>
       </section>
 
       <section class="module-panel" id="idea" aria-labelledby="ideaTitle">

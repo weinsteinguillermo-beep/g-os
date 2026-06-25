@@ -53,6 +53,16 @@
   const outlookTenantId = document.getElementById("outlookTenantId");
   const outlookRedirectUri = document.getElementById("outlookRedirectUri");
   const outlookResult = document.getElementById("outlookResult");
+  const desktopObserverStatus = document.getElementById("desktopObserverStatus");
+  const desktopObserverLastReview = document.getElementById("desktopObserverLastReview");
+  const desktopObserverLastEmail = document.getElementById("desktopObserverLastEmail");
+  const desktopObserverCount = document.getElementById("desktopObserverCount");
+  const desktopObserverInterval = document.getElementById("desktopObserverInterval");
+  const desktopObserverNote = document.getElementById("desktopObserverNote");
+  const desktopObserverResult = document.getElementById("desktopObserverResult");
+  const desktopObserverKey = "gos:outlookDesktopObserver";
+  const desktopProcessedKey = "gos:outlookDesktopObserver:processed";
+  let desktopObserverTimer = null;
   let lastDnaAnswer = null;
   const observerBus = window.GOSObserverBus.create([
     window.GOSGmailConnector,
@@ -453,6 +463,127 @@
       .catch((error) => {
         outlookStatus.textContent = error.message || "No se pudo completar login Outlook.";
       });
+  }
+
+  function getDesktopObserverState() {
+    return loadJson(desktopObserverKey, {
+      active: false,
+      lastReview: null,
+      status: "Esperando",
+      processedCount: 0,
+      lastEmail: null
+    });
+  }
+
+  function saveDesktopObserverState(state) {
+    saveJson(desktopObserverKey, state);
+  }
+
+  function getDesktopProcessedIds() {
+    return loadJson(desktopProcessedKey, []);
+  }
+
+  function saveDesktopProcessedIds(ids) {
+    saveJson(desktopProcessedKey, ids.slice(-500));
+  }
+
+  function renderDesktopObserver(state, imported) {
+    const current = state || getDesktopObserverState();
+    desktopObserverStatus.textContent = current.status || (current.active ? "Activo" : "Esperando");
+    desktopObserverLastReview.textContent = current.lastReview ? window.GOSSystemClock.formatSync(current.lastReview) : "Sin revisar";
+    desktopObserverLastEmail.textContent = current.lastEmail ? `${current.lastEmail.title || "Correo"} | ${current.lastEmail.entity || "General"}` : "Sin correos detectados";
+    desktopObserverCount.textContent = current.processedCount || 0;
+
+    if (imported !== undefined) {
+      desktopObserverResult.innerHTML = "";
+      const card = makeElement("article", "row-card");
+      card.appendChild(makeElement("p", "section-label", "Observaciones locales"));
+      card.appendChild(makeElement("p", null, imported ? `${imported} correos nuevos incorporados a G-OS.` : "Sin correos nuevos en la cola local."));
+      desktopObserverResult.appendChild(card);
+    }
+  }
+
+  async function pollOutlookDesktopQueue(options) {
+    const silent = options && options.silent;
+    try {
+      const response = await fetch(`./desktop_observer/outlook_desktop_queue.json?ts=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Cola local no disponible.");
+      const queue = await response.json();
+      const processedIds = getDesktopProcessedIds();
+      const known = new Set(processedIds);
+      const observations = Array.isArray(queue.observations) ? queue.observations : [];
+      const newObservations = observations.filter((observation) => observation && observation.id && !known.has(observation.id));
+
+      newObservations.forEach((observation) => {
+        observerBus.recordObservation(observation);
+        known.add(observation.id);
+      });
+
+      saveDesktopProcessedIds(Array.from(known));
+
+      const state = {
+        active: getDesktopObserverState().active,
+        status: queue.error ? "Error" : queue.status || "Activo",
+        lastReview: queue.lastReview || timestamp(),
+        lastEmail: queue.lastEmail || null,
+        processedCount: queue.processedCount || processedIds.length,
+        intervalSeconds: queue.intervalSeconds || Number(desktopObserverInterval.value) || 30,
+        error: queue.error || ""
+      };
+      saveDesktopObserverState(state);
+      renderDesktopObserver(state, silent ? undefined : newObservations.length);
+
+      if (queue.error) {
+        desktopObserverNote.textContent = queue.error;
+      } else if (newObservations.length) {
+        desktopObserverNote.textContent = "Correo detectado. G-OS actualizo contexto, ADN y briefing.";
+        runDayRoutine("outlook_desktop");
+        const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
+        renderAll();
+        updateHeartStatus(loopState);
+      } else {
+        desktopObserverNote.textContent = "Observer activo. Esperando nuevos correos de Outlook Desktop.";
+      }
+    } catch (error) {
+      const state = {
+        ...getDesktopObserverState(),
+        status: "Esperando",
+        lastReview: timestamp(),
+        error: error.message
+      };
+      saveDesktopObserverState(state);
+      renderDesktopObserver(state, silent ? undefined : 0);
+      desktopObserverNote.textContent = "Esperando cola local. Ejecutar desktop_observers/START_OUTLOOK_DESKTOP_OBSERVER.cmd.";
+    }
+  }
+
+  function startDesktopObserverPolling() {
+    const interval = Math.max(5, Math.min(Number(desktopObserverInterval.value) || 30, 300));
+    const state = {
+      ...getDesktopObserverState(),
+      active: true,
+      status: "Activo",
+      intervalSeconds: interval
+    };
+    saveDesktopObserverState(state);
+    renderDesktopObserver(state);
+    desktopObserverNote.textContent = "G-OS esta escuchando la cola local de Outlook Desktop.";
+    if (desktopObserverTimer) window.clearInterval(desktopObserverTimer);
+    pollOutlookDesktopQueue();
+    desktopObserverTimer = window.setInterval(() => pollOutlookDesktopQueue({ silent: true }), interval * 1000);
+  }
+
+  function stopDesktopObserverPolling() {
+    if (desktopObserverTimer) window.clearInterval(desktopObserverTimer);
+    desktopObserverTimer = null;
+    const state = {
+      ...getDesktopObserverState(),
+      active: false,
+      status: "Esperando"
+    };
+    saveDesktopObserverState(state);
+    renderDesktopObserver(state);
+    desktopObserverNote.textContent = "Observer detenido en G-OS. Si el script PowerShell sigue abierto, cerrarlo manualmente.";
   }
 
   function renderDnaSearchResult(answer) {
@@ -1629,6 +1760,7 @@
     renderCloseDay();
     updateSystemStatus();
     updateHeartStatus();
+    renderDesktopObserver();
   }
 
   document.getElementById("focusIdea").addEventListener("click", () => ideaInput.focus());
@@ -1638,6 +1770,8 @@
   document.getElementById("connectOutlook").addEventListener("click", connectOutlook);
   document.getElementById("disconnectOutlook").addEventListener("click", disconnectOutlook);
   document.getElementById("readOutlookEmails").addEventListener("click", readOutlookEmails);
+  document.getElementById("startDesktopObserver").addEventListener("click", startDesktopObserverPolling);
+  document.getElementById("stopDesktopObserver").addEventListener("click", stopDesktopObserverPolling);
   beatNow.addEventListener("click", beatNowAction);
   document.getElementById("loadDemo").addEventListener("click", loadDemo);
   document.getElementById("clearDemo").addEventListener("click", () => clearDemo());
@@ -1667,6 +1801,7 @@
   setupNavigation();
   loadOutlookConfig();
   renderOutlookStatus();
+  renderDesktopObserver();
   handleOutlookRedirect();
   observerBus.initialize();
   observerBus.checkUpdates();
@@ -1674,4 +1809,5 @@
   renderAll();
   window.GOSLifeLoopEngine.start(getLoopContext());
   window.setInterval(updateHeartStatus, 1000);
+  if (getDesktopObserverState().active) startDesktopObserverPolling();
 })();

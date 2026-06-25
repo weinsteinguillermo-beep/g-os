@@ -1,0 +1,11 @@
+﻿{
+    "status":  "Activo",
+    "lastReview":  "2026-06-25T21:37:50.8911836Z",
+    "lastEmail":  null,
+    "processedCount":  0,
+    "intervalSeconds":  30,
+    "observations":  [
+
+                     ],
+    "error":  null
+}
