@@ -143,6 +143,11 @@ function Convert-MailToObservation {
     description = $bodyPreview
     priority = $priority
     timestamp = $received
+    sender = $senderName
+    senderEmail = $senderEmail
+    bodyPreview = $bodyPreview
+    folder = $FolderPath
+    entryId = $entryId
     metadata = [ordered]@{
       senderName = $senderName
       senderEmail = $senderEmail
@@ -154,26 +159,133 @@ function Convert-MailToObservation {
   }
 }
 
+function Get-InboxFromStore {
+  param($Store)
+  try {
+    return $Store.GetDefaultFolder(6)
+  } catch {
+    try {
+      $root = $Store.GetRootFolder()
+      foreach ($folder in @($root.Folders)) {
+        if ([string]$folder.Name -in @("Inbox", "Bandeja de entrada")) {
+          return $folder
+        }
+      }
+    } catch {}
+  }
+  return $null
+}
+
 function Get-RecentInboxMail {
   $outlook = Get-OutlookApplication
   $namespace = $outlook.GetNamespace("MAPI")
-  $inbox = $namespace.GetDefaultFolder(6)
-  $items = $inbox.Items
-  $items.Sort("[ReceivedTime]", $true)
-  $folderPath = [string]$inbox.FolderPath
   $messages = @()
+  $debugStores = @()
+  $latestObservation = $null
 
-  $max = [Math]::Min($items.Count, 50)
-  for ($i = 1; $i -le $max; $i++) {
-    $item = $items.Item($i)
-    if ($item -and $item.MessageClass -like "IPM.Note*") {
-      $messages += [pscustomobject]@{
-        Mail = $item
-        FolderPath = $folderPath
+  foreach ($store in @($namespace.Stores)) {
+    $storeName = "Store sin nombre"
+    try { $storeName = [string]$store.DisplayName } catch {}
+    Write-Host "Store: $storeName"
+
+    $storeDebug = [ordered]@{
+      storeName = $storeName
+      inboxFound = $false
+      inboxPath = ""
+      totalItems = 0
+      latestSubject = ""
+      latestReceivedTime = ""
+      reasonIfSkipped = ""
+    }
+
+    try {
+      $inbox = Get-InboxFromStore -Store $store
+      if (-not $inbox) {
+        $storeDebug.reasonIfSkipped = "Inbox no encontrada"
+        Write-Host "  Inbox: no encontrada"
+        $debugStores += $storeDebug
+        continue
       }
+
+      $items = $inbox.Items
+      $folderPath = [string]$inbox.FolderPath
+      $storeDebug.inboxFound = $true
+      $storeDebug.inboxPath = $folderPath
+      $storeDebug.totalItems = [int]$items.Count
+      Write-Host "  Inbox: $folderPath"
+      Write-Host "  Items: $($items.Count)"
+
+      $storeMessages = @()
+      $max = [Math]::Min($items.Count, 200)
+      for ($i = 1; $i -le $max; $i++) {
+        try {
+          $item = $items.Item($i)
+          if (-not $item) { continue }
+          if ([int]$item.Class -ne 43) { continue }
+
+          $receivedTime = [datetime]::MinValue
+          try { $receivedTime = [datetime]$item.ReceivedTime } catch {}
+          $mailRecord = [pscustomobject]@{
+            Mail = $item
+            FolderPath = $folderPath
+            StoreName = $storeName
+            ReceivedTime = $receivedTime
+          }
+          $storeMessages += $mailRecord
+        } catch {
+          Write-Host "  Item omitido: $($_.Exception.Message)"
+        }
+      }
+
+      $storeMessages = $storeMessages | Sort-Object { $_.ReceivedTime } -Descending
+      $latestStoreMessage = @($storeMessages)[0]
+      if ($latestStoreMessage) {
+        try { $storeDebug.latestSubject = [string]$latestStoreMessage.Mail.Subject } catch {}
+        try { $storeDebug.latestReceivedTime = ([datetime]$latestStoreMessage.Mail.ReceivedTime).ToUniversalTime().ToString("o") } catch {}
+        Write-Host "  Ultimo correo: $($storeDebug.latestSubject)"
+        Write-Host "  Fecha ultimo: $($storeDebug.latestReceivedTime)"
+      }
+
+      $messages += @($storeMessages | Select-Object -First 50)
+
+      if (-not $latestObservation -and $latestStoreMessage) {
+        $latestObservation = Convert-MailToObservation -Mail $latestStoreMessage.Mail -FolderPath $folderPath
+      }
+    } catch {
+      $storeDebug.reasonIfSkipped = $_.Exception.Message
+      Write-Host "  Error: $($storeDebug.reasonIfSkipped)"
+    }
+
+    $debugStores += $storeDebug
+  }
+
+  $messages = $messages | Sort-Object {
+    try { [datetime]$_.ReceivedTime } catch { [datetime]::MinValue }
+  } -Descending
+
+  $latestGlobalMessage = @($messages)[0]
+  if ($latestGlobalMessage) {
+    $latestObservation = Convert-MailToObservation -Mail $latestGlobalMessage.Mail -FolderPath $latestGlobalMessage.FolderPath
+  }
+
+  $totalItems = 0
+  foreach ($debugStore in $debugStores) {
+    try { $totalItems += [int]$debugStore.totalItems } catch {}
+  }
+
+  return [pscustomobject]@{
+    Messages = @($messages)
+    LatestObservation = $latestObservation
+    Debug = [ordered]@{
+      storesChecked = @($debugStores | ForEach-Object { $_.storeName })
+      inboxesFound = @($debugStores | Where-Object { $_.inboxFound } | ForEach-Object { $_.inboxPath })
+      totalItems = $totalItems
+      latestSubject = if ($latestObservation) { $latestObservation.title } else { "" }
+      latestReceivedTime = if ($latestObservation) { $latestObservation.timestamp } else { "" }
+      reasonIfSkipped = ($debugStores | Where-Object { $_.reasonIfSkipped } | ForEach-Object { "$($_.storeName): $($_.reasonIfSkipped)" }) -join "; "
+      stores = $debugStores
     }
   }
-  return $messages
 }
 
 function Invoke-OutlookDesktopCycle {
@@ -194,36 +306,16 @@ function Invoke-OutlookDesktopCycle {
   $stateTotalProcessed = if ($state.totalProcessed -ne $null) { [int]$state.totalProcessed } else { 0 }
   $queueObservations = @($queue.observations)
   $queueLastEmail = $queue.lastEmail
+  $queueDebug = $queue.debug
 
   try {
-    $messages = Get-RecentInboxMail
+    $scan = Get-RecentInboxMail
+    $messages = @($scan.Messages)
+    $debug = $scan.Debug
+    $latestObservation = $scan.LatestObservation
     $known = @{}
     foreach ($id in @($state.processedEntryIds)) {
       if ($id) { $known[[string]$id] = $true }
-    }
-
-    if (-not $stateInitialized -and -not $ProcessExisting) {
-      foreach ($message in $messages) {
-        try {
-          $entryId = [string]$message.Mail.EntryID
-          if ($entryId) { $known[$entryId] = $true }
-        } catch {}
-      }
-      Write-JsonFile -Path $StatePath -Value ([ordered]@{
-        initialized = $true
-        processedEntryIds = @($known.Keys)
-        totalProcessed = $stateTotalProcessed
-      })
-      Write-JsonFile -Path $QueuePath -Value ([ordered]@{
-        status = "Esperando"
-        lastReview = Get-NowIso
-        lastEmail = $queueLastEmail
-        processedCount = $stateTotalProcessed
-        intervalSeconds = $IntervalSeconds
-        observations = $queueObservations
-        error = $null
-      })
-      return
     }
 
     $newObservations = @()
@@ -237,12 +329,22 @@ function Invoke-OutlookDesktopCycle {
       $known[$entryId] = $true
     }
 
+    if ($stateTotalProcessed -eq 0 -and $newObservations.Count -eq 0 -and $latestObservation) {
+      $testEntryId = [string]$latestObservation.entryId
+      if ($testEntryId) {
+        Write-Host "Modo diagnostico: importando ultimo correo como observacion de prueba."
+        $latestObservation.metadata.diagnosticFirstRun = $true
+        $newObservations += $latestObservation
+        $known[$testEntryId] = $true
+      }
+    }
+
     $allObservations = @($queue.observations) + $newObservations
     if ($allObservations.Count -gt 100) {
       $allObservations = $allObservations | Select-Object -Last 100
     }
 
-    $lastObservation = if ($newObservations.Count) { $newObservations[-1] } else { $queueLastEmail }
+    $lastObservation = if ($newObservations.Count) { $newObservations[-1] } elseif ($latestObservation) { $latestObservation } else { $queueLastEmail }
     $nextTotal = $stateTotalProcessed + $newObservations.Count
 
     Write-JsonFile -Path $StatePath -Value ([ordered]@{
@@ -257,6 +359,7 @@ function Invoke-OutlookDesktopCycle {
       processedCount = $nextTotal
       intervalSeconds = $IntervalSeconds
       observations = $allObservations
+      debug = $debug
       error = $null
     })
   } catch {
@@ -267,6 +370,7 @@ function Invoke-OutlookDesktopCycle {
       processedCount = $stateTotalProcessed
       intervalSeconds = $IntervalSeconds
       observations = $queueObservations
+      debug = $queueDebug
       error = $_.Exception.Message
     })
   }
