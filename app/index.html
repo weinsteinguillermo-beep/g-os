@@ -63,6 +63,7 @@
       <nav class="module-nav" aria-label="Modulos de G-OS">
         <button class="nav-button active" type="button" data-target="briefing">Briefing</button>
         <button class="nav-button" type="button" data-target="liveInput">Evento</button>
+        <button class="nav-button" type="button" data-target="outlook">Outlook</button>
         <button class="nav-button" type="button" data-target="idea">Idea</button>
         <button class="nav-button" type="button" data-target="projects">Proyectos</button>
         <button class="nav-button" type="button" data-target="decisions">Decisiones</button>
@@ -122,6 +123,27 @@
         <textarea id="liveText" rows="7" placeholder="Pegar aca el correo, nota, mensaje o conversacion."></textarea>
         <button class="primary-button" type="button" id="processLiveEvent">Procesar evento</button>
         <div class="live-result" id="liveResult"></div>
+      </section>
+
+      <section class="module-panel" id="outlook" aria-labelledby="outlookTitle">
+        <div class="panel-heading">
+          <p class="section-label">Outlook Observer</p>
+          <h2 id="outlookTitle">Correo real</h2>
+          <p class="status-note" id="outlookStatus">Outlook desconectado.</p>
+        </div>
+        <label class="input-label" for="outlookClientId">Application / Client ID</label>
+        <input id="outlookClientId" class="text-input" type="text" placeholder="Pegar Client ID de Microsoft Entra">
+        <label class="input-label" for="outlookTenantId">Tenant ID</label>
+        <input id="outlookTenantId" class="text-input" type="text" placeholder="organizations o Tenant ID">
+        <label class="input-label" for="outlookRedirectUri">Redirect URI</label>
+        <input id="outlookRedirectUri" class="text-input" type="text">
+        <div class="button-row two-actions">
+          <button class="secondary-button compact" type="button" id="saveOutlookConfig">Guardar config</button>
+          <button class="primary-button compact" type="button" id="connectOutlook">Conectar Outlook</button>
+          <button class="secondary-button compact" type="button" id="readOutlookEmails">Leer ultimos correos</button>
+          <button class="ghost-button compact" type="button" id="disconnectOutlook">Desconectar</button>
+        </div>
+        <div class="live-result" id="outlookResult"></div>
       </section>
 
       <section class="module-panel" id="idea" aria-labelledby="ideaTitle">
@@ -228,9 +250,9 @@
     <script src="./connectors/airtable_connector.js"></script>
     <script src="./connectors/whatsapp_connector.js"></script>
     <script src="./connectors/drive_connector.js"></script>
-    <script src="./connectors/microsoft_graph/graph_auth.js"></script>
-    <script src="./connectors/microsoft_graph/graph_client.js"></script>
-    <script src="./connectors/microsoft_graph/outlook_observer.js"></script>
+    <script src="./connectors/microsoft_graph/microsoft_graph_config.js"></script>
+    <script src="./connectors/microsoft_graph/microsoft_graph_auth.js"></script>
+    <script src="./connectors/microsoft_graph/outlook_real_connector.js"></script>
     <script src="./live_input.js"></script>
     <script src="./context_engine.js"></script>
     <script src="./decision_engine.js"></script>

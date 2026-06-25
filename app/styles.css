@@ -278,7 +278,7 @@ h3 {
 
 .module-nav {
   display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
+  grid-template-columns: repeat(11, minmax(0, 1fr));
   gap: 6px;
   margin: 16px 0;
   padding: 4px;
@@ -642,6 +642,7 @@ body[data-mode="morning"] .nav-button[data-target="liveInput"] {
 body[data-mode="close"] .hero-brief,
 body[data-mode="close"] .data-tools,
 body[data-mode="close"] .nav-button[data-target="liveInput"],
+body[data-mode="close"] .nav-button[data-target="outlook"],
 body[data-mode="close"] .nav-button[data-target="briefing"],
 body[data-mode="close"] .nav-button[data-target="projects"],
 body[data-mode="close"] .nav-button[data-target="executiveAgenda"],
@@ -681,7 +682,7 @@ body[data-mode="close"] .nav-button[data-target="context"] {
   }
 
   .module-nav {
-    grid-template-columns: repeat(10, max-content);
+    grid-template-columns: repeat(11, max-content);
     overflow-x: auto;
   }
 

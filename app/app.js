@@ -48,14 +48,18 @@
   const liveTitle = document.getElementById("liveTitle");
   const liveText = document.getElementById("liveText");
   const liveResult = document.getElementById("liveResult");
+  const outlookStatus = document.getElementById("outlookStatus");
+  const outlookClientId = document.getElementById("outlookClientId");
+  const outlookTenantId = document.getElementById("outlookTenantId");
+  const outlookRedirectUri = document.getElementById("outlookRedirectUri");
+  const outlookResult = document.getElementById("outlookResult");
   let lastDnaAnswer = null;
   const observerBus = window.GOSObserverBus.create([
     window.GOSGmailConnector,
     window.GOSCalendarConnector,
     window.GOSAirtableConnector,
     window.GOSWhatsAppConnector,
-    window.GOSDriveConnector,
-    ...(window.GOSGraphAuth.getConfig().clientId ? [window.GOSOutlookObserver] : [])
+    window.GOSDriveConnector
   ]);
 
   function formatDate(date) {
@@ -311,6 +315,102 @@
     }
 
     liveResult.appendChild(card);
+  }
+
+  function loadOutlookConfig() {
+    const config = window.GOSMicrosoftGraphConfig.getConfig();
+    outlookClientId.value = config.clientId || "";
+    outlookTenantId.value = config.tenantId || "organizations";
+    outlookRedirectUri.value = config.redirectUri || window.GOSMicrosoftGraphConfig.defaultRedirectUri();
+  }
+
+  function saveOutlookConfig() {
+    const config = window.GOSMicrosoftGraphConfig.saveConfig({
+      clientId: outlookClientId.value,
+      tenantId: outlookTenantId.value,
+      redirectUri: outlookRedirectUri.value
+    });
+    renderOutlookStatus("Configuracion Outlook guardada.");
+    return config;
+  }
+
+  function renderOutlookStatus(message) {
+    const connected = window.GOSMicrosoftGraphAuth.isConnected();
+    const configured = window.GOSMicrosoftGraphConfig.isConfigured();
+    const base = connected ? "Outlook conectado." : configured ? "Outlook configurado, pendiente de conexion." : "Outlook desconectado.";
+    outlookStatus.textContent = message || base;
+    document.body.dataset.outlook = connected ? "connected" : "disconnected";
+  }
+
+  function renderOutlookResult(emails, observations) {
+    outlookResult.innerHTML = "";
+    const card = makeElement("article", "row-card");
+    card.appendChild(makeElement("p", "section-label", "Correos detectados"));
+    card.appendChild(makeElement("p", null, `${emails.length} correos leidos. ${observations.length} observaciones generadas.`));
+
+    const list = makeElement("ul");
+    observations.slice(0, 10).forEach((observation) => {
+      const from = observation.metadata && observation.metadata.from ? observation.metadata.from : {};
+      list.appendChild(makeElement("li", null, `${observation.priority}: ${observation.entity} | ${observation.title} | ${from.name || from.address || "sin remitente"}`));
+    });
+    if (!observations.length) list.appendChild(makeElement("li", null, "Sin correos nuevos para convertir en observaciones."));
+    card.appendChild(list);
+    outlookResult.appendChild(card);
+  }
+
+  async function connectOutlook() {
+    try {
+      saveOutlookConfig();
+      outlookStatus.textContent = "Redirigiendo a Microsoft para autorizar Mail.Read...";
+      await window.GOSMicrosoftGraphAuth.loginOutlook();
+    } catch (error) {
+      outlookStatus.textContent = error.message || "No se pudo iniciar conexion Outlook.";
+    }
+  }
+
+  function disconnectOutlook() {
+    window.GOSMicrosoftGraphAuth.logoutOutlook();
+    renderOutlookStatus("Outlook desconectado. No se conservaron tokens de sesion.");
+  }
+
+  async function readOutlookEmails() {
+    if (!window.GOSMicrosoftGraphAuth.isConnected()) {
+      renderOutlookStatus("Outlook no esta conectado. Primero autorizar Mail.Read.");
+      return;
+    }
+
+    outlookStatus.textContent = "Leyendo ultimos correos...";
+    try {
+      const emails = await window.GOSOutlookRealConnector.readLatestEmails(10);
+      const observations = emails.map((email) => {
+        const observation = window.GOSOutlookRealConnector.emitObservationFromEmail(email);
+        return observerBus.recordObservation(observation);
+      });
+      renderOutlookResult(emails, observations);
+      renderOutlookStatus(`${observations.length} observaciones Outlook generadas.`);
+      runDayRoutine("outlook");
+      const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
+      renderAll();
+      updateHeartStatus(loopState);
+    } catch (error) {
+      outlookStatus.textContent = error.message || "No se pudieron leer correos Outlook.";
+    }
+  }
+
+  function handleOutlookRedirect() {
+    window.GOSMicrosoftGraphAuth.handleRedirectCallback()
+      .then((token) => {
+        if (!token) return;
+        const url = new URL(window.location.href);
+        url.searchParams.delete("code");
+        url.searchParams.delete("state");
+        url.searchParams.delete("session_state");
+        window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+        renderOutlookStatus("Outlook conectado. Ya podes leer ultimos correos.");
+      })
+      .catch((error) => {
+        outlookStatus.textContent = error.message || "No se pudo completar login Outlook.";
+      });
   }
 
   function renderDnaSearchResult(answer) {
@@ -1492,6 +1592,10 @@
   document.getElementById("focusIdea").addEventListener("click", () => ideaInput.focus());
   document.getElementById("saveIdea").addEventListener("click", saveIdea);
   document.getElementById("processLiveEvent").addEventListener("click", processLiveEvent);
+  document.getElementById("saveOutlookConfig").addEventListener("click", saveOutlookConfig);
+  document.getElementById("connectOutlook").addEventListener("click", connectOutlook);
+  document.getElementById("disconnectOutlook").addEventListener("click", disconnectOutlook);
+  document.getElementById("readOutlookEmails").addEventListener("click", readOutlookEmails);
   beatNow.addEventListener("click", beatNowAction);
   document.getElementById("loadDemo").addEventListener("click", loadDemo);
   document.getElementById("clearDemo").addEventListener("click", () => clearDemo());
@@ -1519,6 +1623,9 @@
   });
 
   setupNavigation();
+  loadOutlookConfig();
+  renderOutlookStatus();
+  handleOutlookRedirect();
   observerBus.initialize();
   observerBus.checkUpdates();
   updateSystemStatus(window.GOSLifeEngine.MorningRoutine(getEngineInput()).clock);
