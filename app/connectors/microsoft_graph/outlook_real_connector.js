@@ -154,6 +154,10 @@
     return { source: "outlook", status: "real", mode: "read-only" };
   }
 
+  function checkUpdates() {
+    return [];
+  }
+
   function normalize(update) {
     return normalizeOutlookEmail(update);
   }
@@ -164,11 +168,23 @@
 
   window.GOSOutlookRealConnector = {
     initialize,
+    checkUpdates,
     readLatestEmails,
     normalizeOutlookEmail,
     emitObservationFromEmail,
     normalize,
     emitObservation
+  };
+
+  window.GOSOutlookObserver = window.GOSOutlookObserver || {
+    initialize,
+    checkUpdates,
+    normalize,
+    emitObservation,
+    normalizeEmail: normalizeOutlookEmail,
+    readInbox: (options) => readLatestEmails(options && options.top ? options.top : 10),
+    authenticate: () => window.GOSMicrosoftGraphAuth.loginOutlook(),
+    refreshToken: async () => null
   };
 
   window.readLatestEmails = readLatestEmails;

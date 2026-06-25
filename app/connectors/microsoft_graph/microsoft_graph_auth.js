@@ -44,6 +44,7 @@
   }
 
   async function loginOutlook() {
+    if (!window.GOSMicrosoftGraphConfig) throw new Error("Configuracion Microsoft Graph no cargada.");
     const config = window.GOSMicrosoftGraphConfig.getConfig();
     if (!config.clientId) throw new Error("Configurar Application/Client ID antes de conectar Outlook.");
 
@@ -74,6 +75,7 @@
     const state = current.searchParams.get("state");
     const expectedState = sessionStorage.getItem(STATE_KEY);
     const verifier = sessionStorage.getItem(VERIFIER_KEY);
+    if (!window.GOSMicrosoftGraphConfig) throw new Error("Configuracion Microsoft Graph no cargada.");
     const config = window.GOSMicrosoftGraphConfig.getConfig();
 
     if (!code) return null;
@@ -139,4 +141,15 @@
 
   window.loginOutlook = loginOutlook;
   window.logoutOutlook = logoutOutlook;
+
+  window.GOSGraphAuth = window.GOSGraphAuth || {
+    configure: window.GOSMicrosoftGraphConfig ? window.GOSMicrosoftGraphConfig.saveConfig : () => ({}),
+    getConfig: window.GOSMicrosoftGraphConfig ? window.GOSMicrosoftGraphConfig.getConfig : () => ({}),
+    authenticate: loginOutlook,
+    handleRedirectCallback,
+    refreshToken: async () => null,
+    getAccessToken,
+    getToken,
+    isConnected
+  };
 })();

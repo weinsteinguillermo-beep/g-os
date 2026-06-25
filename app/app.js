@@ -62,6 +62,19 @@
     window.GOSDriveConnector
   ]);
 
+  function getOutlookModules() {
+    return {
+      config: window.GOSMicrosoftGraphConfig || null,
+      auth: window.GOSMicrosoftGraphAuth || null,
+      connector: window.GOSOutlookRealConnector || null
+    };
+  }
+
+  function isOutlookAvailable() {
+    const modules = getOutlookModules();
+    return Boolean(modules.config && modules.auth && modules.connector);
+  }
+
   function formatDate(date) {
     return new Intl.DateTimeFormat("es-UY", {
       weekday: "short",
@@ -318,14 +331,26 @@
   }
 
   function loadOutlookConfig() {
-    const config = window.GOSMicrosoftGraphConfig.getConfig();
+    const modules = getOutlookModules();
+    if (!modules.config) {
+      if (outlookStatus) outlookStatus.textContent = "Outlook no configurado. G-OS sigue activo.";
+      return;
+    }
+
+    const config = modules.config.getConfig();
     outlookClientId.value = config.clientId || "";
     outlookTenantId.value = config.tenantId || "organizations";
-    outlookRedirectUri.value = config.redirectUri || window.GOSMicrosoftGraphConfig.defaultRedirectUri();
+    outlookRedirectUri.value = config.redirectUri || modules.config.defaultRedirectUri();
   }
 
   function saveOutlookConfig() {
-    const config = window.GOSMicrosoftGraphConfig.saveConfig({
+    const modules = getOutlookModules();
+    if (!modules.config) {
+      renderOutlookStatus("Modulo Outlook no disponible. G-OS sigue activo.");
+      return null;
+    }
+
+    const config = modules.config.saveConfig({
       clientId: outlookClientId.value,
       tenantId: outlookTenantId.value,
       redirectUri: outlookRedirectUri.value
@@ -335,8 +360,9 @@
   }
 
   function renderOutlookStatus(message) {
-    const connected = window.GOSMicrosoftGraphAuth.isConnected();
-    const configured = window.GOSMicrosoftGraphConfig.isConfigured();
+    const modules = getOutlookModules();
+    const connected = Boolean(modules.auth && modules.auth.isConnected());
+    const configured = Boolean(modules.config && modules.config.isConfigured());
     const base = connected ? "Outlook conectado." : configured ? "Outlook configurado, pendiente de conexion." : "Outlook desconectado.";
     outlookStatus.textContent = message || base;
     document.body.dataset.outlook = connected ? "connected" : "disconnected";
@@ -359,31 +385,44 @@
   }
 
   async function connectOutlook() {
+    const modules = getOutlookModules();
+    if (!modules.auth || !modules.config) {
+      renderOutlookStatus("Modulo Outlook no disponible. G-OS sigue activo.");
+      return;
+    }
+
     try {
       saveOutlookConfig();
       outlookStatus.textContent = "Redirigiendo a Microsoft para autorizar Mail.Read...";
-      await window.GOSMicrosoftGraphAuth.loginOutlook();
+      await modules.auth.loginOutlook();
     } catch (error) {
       outlookStatus.textContent = error.message || "No se pudo iniciar conexion Outlook.";
     }
   }
 
   function disconnectOutlook() {
-    window.GOSMicrosoftGraphAuth.logoutOutlook();
+    const modules = getOutlookModules();
+    if (modules.auth) modules.auth.logoutOutlook();
     renderOutlookStatus("Outlook desconectado. No se conservaron tokens de sesion.");
   }
 
   async function readOutlookEmails() {
-    if (!window.GOSMicrosoftGraphAuth.isConnected()) {
+    const modules = getOutlookModules();
+    if (!modules.auth || !modules.connector) {
+      renderOutlookStatus("Modulo Outlook no disponible. G-OS sigue activo.");
+      return;
+    }
+
+    if (!modules.auth.isConnected()) {
       renderOutlookStatus("Outlook no esta conectado. Primero autorizar Mail.Read.");
       return;
     }
 
     outlookStatus.textContent = "Leyendo ultimos correos...";
     try {
-      const emails = await window.GOSOutlookRealConnector.readLatestEmails(10);
+      const emails = await modules.connector.readLatestEmails(10);
       const observations = emails.map((email) => {
-        const observation = window.GOSOutlookRealConnector.emitObservationFromEmail(email);
+        const observation = modules.connector.emitObservationFromEmail(email);
         return observerBus.recordObservation(observation);
       });
       renderOutlookResult(emails, observations);
@@ -398,7 +437,10 @@
   }
 
   function handleOutlookRedirect() {
-    window.GOSMicrosoftGraphAuth.handleRedirectCallback()
+    const modules = getOutlookModules();
+    if (!modules.auth) return;
+
+    modules.auth.handleRedirectCallback()
       .then((token) => {
         if (!token) return;
         const url = new URL(window.location.href);
