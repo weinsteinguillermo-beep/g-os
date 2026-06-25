@@ -22,6 +22,22 @@
   const importFile = document.getElementById("importFile");
   const dailyLearning = document.getElementById("dailyLearning");
   const closeStatus = document.getElementById("closeStatus");
+  const lastSyncLabel = document.getElementById("lastSyncLabel");
+  const contextSelect = document.getElementById("contextSelect");
+  const contextGrid = document.getElementById("contextGrid");
+  const contextSummary = document.getElementById("contextSummary");
+  const liveType = document.getElementById("liveType");
+  const liveTitle = document.getElementById("liveTitle");
+  const liveText = document.getElementById("liveText");
+  const liveResult = document.getElementById("liveResult");
+  const observerBus = window.GOSObserverBus.create([
+    window.GOSGmailConnector,
+    window.GOSCalendarConnector,
+    window.GOSAirtableConnector,
+    window.GOSWhatsAppConnector,
+    window.GOSDriveConnector,
+    ...(window.GOSGraphAuth.getConfig().clientId ? [window.GOSOutlookObserver] : [])
+  ]);
 
   function formatDate(date) {
     return new Intl.DateTimeFormat("es-UY", {
@@ -95,28 +111,112 @@
     saveJson(decisionKey, stored);
   }
 
-  function renderBriefing() {
-    const decisions = getDecisions()
-      .filter((decision) => decision.state !== "Archivada")
-      .slice(0, 3)
-      .map((decision) => `${decision.priority}: ${decision.context}`);
-    const projects = data.projects
-      .filter((project) => project.priority === "Alta")
-      .slice(0, 3)
-      .map((project) => `${project.name}: ${project.status}`);
-    const risks = findBriefingItems("Riesgos").slice(0, 3);
-    const opportunities = findBriefingItems("Oportunidades").slice(0, 3);
+  function getLearnings() {
+    const learning = localStorage.getItem(learningKey);
+    return learning ? [learning] : [];
+  }
 
-    dailyRecommendation.textContent = data.recommendation;
-    dailyQuestion.textContent = data.question;
-    todayLabel.textContent = formatDate();
+  function getEngineInput() {
+    return {
+      ideas: getIdeas(),
+      proyectos: data.projects,
+      decisiones: getDecisions(),
+      aprendizajes: getLearnings(),
+      observaciones: observerBus.getObservations()
+    };
+  }
+
+  function getContextGraph() {
+    return window.GOSContextEngine.buildGraph(getEngineInput());
+  }
+
+  function updateSystemStatus(clockState) {
+    const state = clockState || window.GOSSystemClock.read();
+    lastSyncLabel.textContent = window.GOSSystemClock.formatSync(state.lastSync);
+  }
+
+  function runDayRoutine(type) {
+    const state = window.GOSLifeEngine.DayRoutine({ type });
+    updateSystemStatus({ lastSync: state.lastSync });
+  }
+
+  function renderLiveResult(detected, briefing) {
+    liveResult.innerHTML = "";
+    const card = makeElement("article", "row-card");
+    const items = [
+      ["Que detecto G-OS", `${detected.type}: ${liveTitle.value || "Evento sin titulo"}`],
+      ["Proyecto relacionado", detected.project],
+      ["Prioridad", detected.priority],
+      ["Recomendacion Chief of Staff", detected.recommendation],
+      ["Aparece en briefing", detected.shouldAppearInBriefing ? "Si" : "No"]
+    ];
+
+    items.forEach(([label, value]) => {
+      card.appendChild(makeElement("p", "section-label", label));
+      card.appendChild(makeElement("p", null, value));
+    });
+
+    if (briefing && briefing.recomendacion) {
+      card.appendChild(makeElement("p", "section-label", "Briefing actualizado"));
+      card.appendChild(makeElement("p", null, briefing.recomendacion));
+    }
+
+    liveResult.appendChild(card);
+  }
+
+  function processLiveEvent() {
+    const title = liveTitle.value.trim();
+    const description = liveText.value.trim();
+
+    if (!title && !description) {
+      liveText.focus();
+      return;
+    }
+
+    const processed = window.GOSLiveInput.processEvent({
+      type: liveType.value,
+      title,
+      description
+    });
+
+    observerBus.recordObservation(processed.observation);
+    runDayRoutine("live_input");
+    renderAll();
+
+    const input = getEngineInput();
+    input.contextGraph = getContextGraph();
+    const briefing = window.GOSChiefOfStaff.generateDailyBriefing(input);
+    renderLiveResult(processed.detected, briefing);
+
+    liveTitle.value = "";
+    liveText.value = "";
+  }
+
+  function renderBriefing() {
+    const input = getEngineInput();
+    input.contextGraph = getContextGraph();
+    const briefing = window.GOSChiefOfStaff.generateDailyBriefing(input);
+
+    dailyRecommendation.textContent = briefing.recomendacion;
+    dailyQuestion.textContent = briefing.resumen;
+    todayLabel.textContent = briefing.fecha;
     briefingGrid.innerHTML = "";
 
     [
-      { title: "Decisiones", items: decisions },
-      { title: "Proyectos importantes", items: projects },
-      { title: "Riesgos", items: risks },
-      { title: "Oportunidades", items: opportunities }
+      {
+        title: "Decisiones",
+        items: briefing.decisiones.map((decision) => `${decision.priority}: ${decision.context}`)
+      },
+      {
+        title: "Proyectos importantes",
+        items: briefing.proyectos.map((project) => `${project.name}: ${project.status}`)
+      },
+      { title: "Riesgos", items: briefing.riesgos },
+      { title: "Oportunidades", items: briefing.oportunidades },
+      {
+        title: "Observaciones",
+        items: (briefing.observaciones || []).map((observation) => `${observation.source}: ${observation.title}`)
+      }
     ].forEach(renderBriefCard);
   }
 
@@ -149,8 +249,65 @@
       item.appendChild(header);
       item.appendChild(makeElement("p", "muted", project.status));
       item.appendChild(makeElement("p", null, project.lastActivity));
+      item.appendChild(makeAction("Ver contexto", "secondary-button compact", () => {
+        contextSelect.value = project.name;
+        renderContext();
+        activatePanel("context");
+      }));
       projectsList.appendChild(item);
     });
+  }
+
+  function renderContextSelector() {
+    contextSelect.innerHTML = "";
+    data.projects.forEach((project) => {
+      const option = makeElement("option", null, project.name);
+      option.value = project.name;
+      contextSelect.appendChild(option);
+    });
+  }
+
+  function renderContext() {
+    const query = contextSelect.value || (data.projects[0] && data.projects[0].name) || "";
+    const context = window.GOSContextEngine.findRelatedContext(query, getEngineInput());
+    const groups = [
+      ["proyectos", "Proyectos"],
+      ["decisions", "Decisiones"],
+      ["ideas", "Ideas"],
+      ["aprendizajes", "Aprendizajes"],
+      ["observaciones", "Observaciones"]
+    ];
+
+    contextSummary.innerHTML = "";
+    contextGrid.innerHTML = "";
+    contextSummary.appendChild(makeElement("p", "status-note", `${context.related.length} elementos relacionados encontrados.`));
+
+    groups.forEach(([key, label]) => {
+      const items = (context.grouped[key] || []).slice(0, 4);
+      const card = makeElement("article", "brief-card");
+      card.appendChild(makeElement("h3", null, label));
+      const list = makeElement("ul");
+
+      if (!items.length) {
+        list.appendChild(makeElement("li", null, "Sin relaciones todavia."));
+      }
+
+      items.forEach((item) => {
+        list.appendChild(makeElement("li", null, `${item.title} (${item.state})`));
+      });
+
+      card.appendChild(list);
+      contextGrid.appendChild(card);
+    });
+
+    const tagCard = makeElement("article", "brief-card");
+    tagCard.appendChild(makeElement("h3", null, "Etiquetas"));
+    const tagList = makeElement("ul");
+    const tags = Array.from(new Set(context.related.flatMap((item) => item.tags))).slice(0, 8);
+    if (!tags.length) tagList.appendChild(makeElement("li", null, "Sin etiquetas todavia."));
+    tags.forEach((tag) => tagList.appendChild(makeElement("li", null, tag)));
+    tagCard.appendChild(tagList);
+    contextGrid.appendChild(tagCard);
   }
 
   function renderDecisions() {
@@ -223,6 +380,8 @@
       priority,
       state
     });
+    window.GOSSystemClock.markDecision();
+    runDayRoutine("decision");
     renderAll();
   }
 
@@ -296,6 +455,8 @@
       createdAtIso: timestamp()
     });
     saveIdeas(ideas);
+    window.GOSSystemClock.markIdea();
+    runDayRoutine("idea");
     ideaInput.value = "";
     ideaStatus.value = "Nueva";
     renderAll();
@@ -312,6 +473,7 @@
       };
     });
     saveIdeas(ideas);
+    runDayRoutine("idea");
     renderAll();
   }
 
@@ -489,6 +651,8 @@
 
   function saveLearning() {
     localStorage.setItem(learningKey, dailyLearning.value.trim());
+    window.GOSSystemClock.markLearning();
+    runDayRoutine("learning");
     closeStatus.textContent = "Aprendizaje guardado";
     renderCloseDay();
   }
@@ -504,6 +668,10 @@
     document.body.dataset.mode = mode;
     document.getElementById("morningMode").classList.toggle("active-mode", mode === "morning");
     document.getElementById("closeMode").classList.toggle("active-mode", mode === "close");
+    if (mode === "close") {
+      const result = window.GOSLifeEngine.NightRoutine(getEngineInput());
+      updateSystemStatus(result.clock);
+    }
     activatePanel(mode === "close" ? "closeDay" : "briefing");
   }
 
@@ -523,11 +691,15 @@
     renderDecisions();
     renderCodex();
     renderIdeas();
+    renderContextSelector();
+    renderContext();
     renderCloseDay();
+    updateSystemStatus();
   }
 
   document.getElementById("focusIdea").addEventListener("click", () => ideaInput.focus());
   document.getElementById("saveIdea").addEventListener("click", saveIdea);
+  document.getElementById("processLiveEvent").addEventListener("click", processLiveEvent);
   document.getElementById("newMission").addEventListener("click", () => {
     const prompt = buildMissionPrompt();
     localStorage.setItem(missionKey, prompt);
@@ -539,6 +711,7 @@
   document.getElementById("copyCloseDay").addEventListener("click", copyCloseDay);
   document.getElementById("morningMode").addEventListener("click", () => setMode("morning"));
   document.getElementById("closeMode").addEventListener("click", () => setMode("close"));
+  contextSelect.addEventListener("change", renderContext);
   document.getElementById("exportData").addEventListener("click", exportData);
   document.getElementById("importData").addEventListener("click", () => importFile.click());
   importFile.addEventListener("change", () => {
@@ -548,5 +721,8 @@
   });
 
   setupNavigation();
+  observerBus.initialize();
+  observerBus.checkUpdates();
+  updateSystemStatus(window.GOSLifeEngine.MorningRoutine(getEngineInput()).clock);
   renderAll();
 })();

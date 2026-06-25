@@ -51,6 +51,34 @@ button {
   padding: 10px 2px 18px;
 }
 
+.system-status {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.active-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.active-indicator span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.sync-label strong {
+  color: var(--ink);
+}
+
 .eyebrow,
 .section-label {
   margin: 0 0 6px;
@@ -131,7 +159,7 @@ h3 {
 
 .module-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 6px;
   margin: 16px 0;
   padding: 4px;
@@ -279,6 +307,23 @@ textarea {
   line-height: 1.45;
 }
 
+.text-input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.live-result {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
 .status-select {
   width: 100%;
   min-height: 48px;
@@ -394,14 +439,18 @@ select:focus {
   white-space: pre-wrap;
 }
 
-body[data-mode="morning"] .nav-button[data-target="closeDay"] {
+body[data-mode="morning"] .nav-button[data-target="closeDay"],
+body[data-mode="morning"] .nav-button[data-target="context"],
+body[data-mode="morning"] .nav-button[data-target="liveInput"] {
   display: none;
 }
 
 body[data-mode="close"] .hero-brief,
 body[data-mode="close"] .data-tools,
+body[data-mode="close"] .nav-button[data-target="liveInput"],
 body[data-mode="close"] .nav-button[data-target="briefing"],
-body[data-mode="close"] .nav-button[data-target="projects"] {
+body[data-mode="close"] .nav-button[data-target="projects"],
+body[data-mode="close"] .nav-button[data-target="context"] {
   display: none;
 }
 
@@ -424,7 +473,7 @@ body[data-mode="close"] .nav-button[data-target="projects"] {
   }
 
   .module-nav {
-    grid-template-columns: repeat(6, max-content);
+    grid-template-columns: repeat(8, max-content);
     overflow-x: auto;
   }
 
@@ -441,6 +490,14 @@ body[data-mode="close"] .nav-button[data-target="projects"] {
 @media (max-width: 420px) {
   .date-pill {
     display: none;
+  }
+
+  .topbar {
+    display: grid;
+  }
+
+  .system-status {
+    justify-items: start;
   }
 
   .hero-brief h2 {

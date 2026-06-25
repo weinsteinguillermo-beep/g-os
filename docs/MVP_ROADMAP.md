@@ -81,6 +81,113 @@ Incluye:
 
 Estado: preparado localmente para publicacion.
 
+## v0.11 Chief Of Staff Por Reglas
+
+Objetivo: crear el primer agente real de G-OS sin IA.
+
+Incluye:
+
+- modulo `app/chief_of_staff.js`;
+- funcion `generateDailyBriefing()`;
+- priorizacion por urgencia, impacto economico, tiempo sin movimiento, bloqueos y prioridad manual;
+- integracion con el dashboard;
+- documentacion;
+- ejemplos;
+- pruebas manuales en navegador.
+
+Estado: implementado como motor de reglas.
+
+## v0.12 Life Engine Local
+
+Objetivo: hacer que G-OS se comporte como un sistema vivo local.
+
+Incluye:
+
+- `app/system_clock.js`;
+- `app/life_engine.js`;
+- `MorningRoutine()`;
+- `DayRoutine()`;
+- `NightRoutine()`;
+- indicador `G-OS activo`;
+- ultima sincronizacion local;
+- deteccion de proyectos olvidados;
+- deteccion de decisiones viejas;
+- resumen nocturno interno.
+
+Estado: implementado sin IA, APIs ni backend.
+
+## v0.13 Context Engine Local
+
+Objetivo: conectar ideas, proyectos, decisiones y aprendizajes para construir conocimiento.
+
+Incluye:
+
+- `app/context_engine.js`;
+- normalizacion de entidades;
+- `linkEntity()`;
+- `findRelatedContext()`;
+- vista `Contexto`;
+- relaciones por etiquetas, entidades y texto;
+- integracion con Chief of Staff;
+- documentacion `docs/CONTEXT_ENGINE_V01.md`.
+
+Estado: implementado sin IA, APIs ni backend.
+
+## v0.14 Observer Bus Local
+
+Objetivo: preparar G-OS para observar fuentes externas sin conectarlas todavia.
+
+Incluye:
+
+- `app/observer_bus.js`;
+- `app/event_log.js`;
+- conectores simulados para Gmail, Calendar, Airtable, WhatsApp y Drive;
+- interfaz comun `initialize()`, `checkUpdates()`, `normalize()`, `emitObservation()`;
+- formato unico de observacion;
+- consultas por fecha, fuente, prioridad y tipo;
+- integracion con Context Engine;
+- integracion con Chief of Staff;
+- documentacion `docs/OBSERVER_BUS_V01.md`.
+
+Estado: implementado localmente sin IA, APIs ni backend.
+
+## v0.15 Microsoft Graph Observer Alfa 1
+
+Objetivo: preparar la primera conexion real de G-OS con Outlook mediante Microsoft Graph.
+
+Incluye:
+
+- `connectors/microsoft_graph/graph_auth.js`;
+- `connectors/microsoft_graph/graph_client.js`;
+- `connectors/microsoft_graph/outlook_observer.js`;
+- OAuth 2.0 con PKCE;
+- funciones `authenticate()`, `refreshToken()`, `readInbox()`, `readFolder()`, `normalizeEmail()`, `emitObservation()`;
+- conversion de correos en Observation;
+- reglas iniciales de prioridad para remitentes estrategicos;
+- integracion preparada con Observer Bus;
+- documentacion `docs/MICROSOFT_GRAPH_SETUP.md`.
+
+Estado: alfa preparada. Requiere registrar app en Azure y configurar Client ID/Tenant ID para leer correos reales.
+
+## v0.16 Live Input Local
+
+Objetivo: validar el flujo de observacion con informacion real ingresada manualmente antes de conectar Outlook.
+
+Incluye:
+
+- modulo `Evento`;
+- `app/live_input.js`;
+- procesamiento local de correo, nota, conversacion, documento, idea o WhatsApp;
+- reglas de relacion automatica por proyecto;
+- prioridad HIGH, MEDIUM, LOW;
+- envio al Observer Bus;
+- registro en Event Log;
+- relacion en Context Engine;
+- impacto en Chief of Staff y Daily Briefing;
+- documentacion `docs/LIVE_INPUT_V01.md`.
+
+Estado: implementado localmente sin IA, APIs ni conectores reales.
+
 ## v0.3 Persistencia Real Minima
 
 Objetivo: guardar ideas, decisiones y proyectos en una fuente simple.

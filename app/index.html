@@ -21,7 +21,11 @@
           <p class="eyebrow">G-OS</p>
           <h1>Buenos dias Guillermo</h1>
         </div>
-        <div class="date-pill" id="todayLabel">Hoy</div>
+        <div class="system-status">
+          <div class="active-indicator"><span aria-hidden="true"></span>G-OS activo</div>
+          <div class="sync-label">Ultima sincronizacion: <strong id="lastSyncLabel">Hoy</strong></div>
+          <div class="date-pill" id="todayLabel">Hoy</div>
+        </div>
       </header>
 
       <section class="hero-brief">
@@ -37,10 +41,12 @@
 
       <nav class="module-nav" aria-label="Modulos de G-OS">
         <button class="nav-button active" type="button" data-target="briefing">Briefing</button>
+        <button class="nav-button" type="button" data-target="liveInput">Evento</button>
         <button class="nav-button" type="button" data-target="idea">Idea</button>
         <button class="nav-button" type="button" data-target="projects">Proyectos</button>
         <button class="nav-button" type="button" data-target="decisions">Decisiones</button>
         <button class="nav-button" type="button" data-target="codex">Codex</button>
+        <button class="nav-button" type="button" data-target="context">Contexto</button>
         <button class="nav-button" type="button" data-target="closeDay">Cierre</button>
       </nav>
 
@@ -57,6 +63,28 @@
           <h2 id="briefingTitle">Panel ejecutivo</h2>
         </div>
         <div class="brief-grid" id="briefingGrid"></div>
+      </section>
+
+      <section class="module-panel" id="liveInput" aria-labelledby="liveInputTitle">
+        <div class="panel-heading">
+          <p class="section-label">Nuevo Evento</p>
+          <h2 id="liveInputTitle">Pegar informacion real</h2>
+        </div>
+        <label class="input-label" for="liveType">Tipo</label>
+        <select id="liveType" class="status-select">
+          <option value="correo">Correo</option>
+          <option value="nota">Nota</option>
+          <option value="conversacion">Conversacion</option>
+          <option value="documento">Documento</option>
+          <option value="idea">Idea</option>
+          <option value="whatsapp">Mensaje de WhatsApp</option>
+        </select>
+        <label class="input-label" for="liveTitle">Titulo</label>
+        <input id="liveTitle" class="text-input" type="text" placeholder="Ej: Correo de Master Florestal">
+        <label class="input-label" for="liveText">Texto</label>
+        <textarea id="liveText" rows="7" placeholder="Pegar aca el correo, nota, mensaje o conversacion."></textarea>
+        <button class="primary-button" type="button" id="processLiveEvent">Procesar evento</button>
+        <div class="live-result" id="liveResult"></div>
       </section>
 
       <section class="module-panel" id="idea" aria-labelledby="ideaTitle">
@@ -106,6 +134,17 @@
         <pre class="prompt-output" id="missionPrompt" aria-live="polite"></pre>
       </section>
 
+      <section class="module-panel" id="context" aria-labelledby="contextTitle">
+        <div class="panel-heading">
+          <p class="section-label">Contexto</p>
+          <h2 id="contextTitle">Relacionado con...</h2>
+        </div>
+        <label class="input-label" for="contextSelect">Proyecto o tema</label>
+        <select id="contextSelect" class="status-select"></select>
+        <div class="context-summary" id="contextSummary"></div>
+        <div class="brief-grid" id="contextGrid"></div>
+      </section>
+
       <section class="module-panel" id="closeDay" aria-labelledby="closeDayTitle">
         <div class="panel-heading">
           <p class="section-label">Cierre del dia</p>
@@ -121,6 +160,21 @@
     </main>
 
     <script src="./data.js"></script>
+    <script src="./event_log.js"></script>
+    <script src="./observer_bus.js"></script>
+    <script src="./connectors/gmail_connector.js"></script>
+    <script src="./connectors/calendar_connector.js"></script>
+    <script src="./connectors/airtable_connector.js"></script>
+    <script src="./connectors/whatsapp_connector.js"></script>
+    <script src="./connectors/drive_connector.js"></script>
+    <script src="./connectors/microsoft_graph/graph_auth.js"></script>
+    <script src="./connectors/microsoft_graph/graph_client.js"></script>
+    <script src="./connectors/microsoft_graph/outlook_observer.js"></script>
+    <script src="./live_input.js"></script>
+    <script src="./context_engine.js"></script>
+    <script src="./chief_of_staff.js"></script>
+    <script src="./system_clock.js"></script>
+    <script src="./life_engine.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
