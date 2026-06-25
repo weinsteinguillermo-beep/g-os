@@ -64,6 +64,7 @@
         <button class="nav-button active" type="button" data-target="briefing">Briefing</button>
         <button class="nav-button" type="button" data-target="liveInput">Evento</button>
         <button class="nav-button" type="button" data-target="outlook">Outlook</button>
+        <button class="nav-button" type="button" data-target="executiveCenter">Centro Ejecutivo</button>
         <button class="nav-button" type="button" data-target="idea">Idea</button>
         <button class="nav-button" type="button" data-target="projects">Proyectos</button>
         <button class="nav-button" type="button" data-target="decisions">Decisiones</button>
@@ -169,6 +170,17 @@
           <p class="status-note" id="desktopObserverNote">Para observar Outlook Desktop, ejecutar tambien desktop_observers/START_OUTLOOK_DESKTOP_OBSERVER.cmd.</p>
           <div class="live-result" id="desktopObserverResult"></div>
         </div>
+      </section>
+
+      <section class="module-panel" id="executiveCenter" aria-labelledby="executiveCenterTitle">
+        <div class="panel-heading">
+          <p class="section-label">Centro Ejecutivo</p>
+          <h2 id="executiveCenterTitle">Decidir sin leer correos</h2>
+          <p class="status-note" id="executiveCenterSummary">Sin conocimiento ejecutivo procesado todavia.</p>
+        </div>
+        <div class="executive-snapshot" id="executiveSnapshot"></div>
+        <div class="brief-grid executive-kpis" id="executiveKpis"></div>
+        <div class="list-stack" id="executiveDecisionCenterList"></div>
       </section>
 
       <section class="module-panel" id="idea" aria-labelledby="ideaTitle">
@@ -279,6 +291,7 @@
     <script src="./connectors/microsoft_graph/microsoft_graph_auth.js"></script>
     <script src="./connectors/microsoft_graph/outlook_real_connector.js"></script>
     <script src="./cognitive_mail_engine.js"></script>
+    <script src="./executive_decision_center.js"></script>
     <script src="./live_input.js"></script>
     <script src="./context_engine.js"></script>
     <script src="./decision_engine.js"></script>

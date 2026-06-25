@@ -278,7 +278,7 @@ h3 {
 
 .module-nav {
   display: grid;
-  grid-template-columns: repeat(11, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 6px;
   margin: 16px 0;
   padding: 4px;
@@ -413,6 +413,43 @@ h3 {
 
 .cognitive-mail-card {
   margin-top: 14px;
+}
+
+.executive-snapshot {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.executive-snapshot .brief-card p {
+  margin-bottom: 0;
+}
+
+.executive-kpis {
+  margin-bottom: 14px;
+}
+
+.executive-card {
+  display: grid;
+  gap: 10px;
+}
+
+.executive-card h3,
+.executive-card p {
+  margin-bottom: 0;
+}
+
+.executive-card-actions {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.executive-card[data-level="CRITICO"] {
+  border-color: var(--danger);
+}
+
+.executive-card[data-level="ALTO"] {
+  border-color: var(--warning);
 }
 
 .observer-status-grid {
@@ -707,7 +744,7 @@ body[data-mode="close"] .nav-button[data-target="context"] {
   }
 
   .module-nav {
-    grid-template-columns: repeat(11, max-content);
+    grid-template-columns: repeat(12, max-content);
     overflow-x: auto;
   }
 
@@ -721,6 +758,14 @@ body[data-mode="close"] .nav-button[data-target="context"] {
   }
 
   .heart-change .brief-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .executive-snapshot {
+    grid-template-columns: 1fr;
+  }
+
+  .executive-card-actions {
     grid-template-columns: 1fr;
   }
 }

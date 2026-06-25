@@ -55,6 +55,10 @@
   const outlookResult = document.getElementById("outlookResult");
   const cognitiveMailSummary = document.getElementById("cognitiveMailSummary");
   const cognitiveMailGrid = document.getElementById("cognitiveMailGrid");
+  const executiveCenterSummary = document.getElementById("executiveCenterSummary");
+  const executiveSnapshot = document.getElementById("executiveSnapshot");
+  const executiveKpis = document.getElementById("executiveKpis");
+  const executiveDecisionCenterList = document.getElementById("executiveDecisionCenterList");
   const desktopObserverStatus = document.getElementById("desktopObserverStatus");
   const desktopObserverLastReview = document.getElementById("desktopObserverLastReview");
   const desktopObserverLastEmail = document.getElementById("desktopObserverLastEmail");
@@ -234,6 +238,14 @@
     const input = getEngineInput();
     input.contextGraph = getContextGraph();
     return window.GOSDecisionEngine.buildExecutiveAgenda(input);
+  }
+
+  function getExecutiveDecisionCenter() {
+    const input = getEngineInput();
+    input.contextGraph = getContextGraph();
+    input.agenda = window.GOSDecisionEngine.buildExecutiveAgenda(input);
+    input.desktopObserver = getDesktopObserverState();
+    return window.GOSExecutiveDecisionCenter.build(input);
   }
 
   function getLoopContext() {
@@ -1033,6 +1045,193 @@
     });
   }
 
+  function formatExecutiveDate(value) {
+    if (!value) return "Sin fecha";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat("es-UY", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(date);
+  }
+
+  function renderExecutiveSnapshot(center) {
+    executiveSnapshot.innerHTML = "";
+    const last = center.last || {};
+    const items = [
+      ["Ultimo correo recibido", last.receivedEmail ? `${last.receivedEmail.title || "Correo"} | ${last.receivedEmail.sender || last.receivedEmail.entity || "Sin remitente"}` : "Sin correo recibido"],
+      ["Ultimo correo entendido", last.cognitiveEmail ? `${last.cognitiveEmail.title} | ${last.cognitiveEmail.entity}` : "Sin correo procesado cognitivamente"],
+      ["Ultima decision generada", last.generatedDecision ? `${last.generatedDecision.title || last.generatedDecision.context}` : "Sin decision generada"],
+      ["Ultima accion sugerida", last.suggestedAction || "Mantener seguimiento normal."]
+    ];
+
+    items.forEach(([label, value]) => {
+      const card = makeElement("article", "brief-card");
+      card.appendChild(makeElement("h3", null, label));
+      card.appendChild(makeElement("p", null, value));
+      executiveSnapshot.appendChild(card);
+    });
+  }
+
+  function renderExecutiveKpis(center) {
+    executiveKpis.innerHTML = "";
+    const groups = center.groups || {};
+    [
+      ["Decisiones criticas", (groups.criticalDecisions || []).length],
+      ["Riesgos", (groups.risks || []).length],
+      ["Oportunidades", (groups.opportunities || []).length],
+      ["Seguimientos", (groups.pendingFollowups || []).length],
+      ["Empresas con movimiento", (groups.companies || []).length]
+    ].forEach(([label, value]) => {
+      const card = makeElement("article", "brief-card");
+      card.appendChild(makeElement("h3", null, label));
+      card.appendChild(makeElement("p", null, String(value)));
+      executiveKpis.appendChild(card);
+    });
+  }
+
+  function executiveActionCompleted(message) {
+    runDayRoutine("executive_center");
+    const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
+    renderAll();
+    updateHeartStatus(loopState);
+    executiveCenterSummary.textContent = message;
+  }
+
+  function resolveExecutiveItem(item) {
+    window.GOSExecutiveDecisionCenter.updateItem(item.id, { status: "Resuelto" });
+    if (item.kind === "seguimiento") {
+      updateFollowup(item.sourceId, () => ({ estado: "Realizado", completedAt: timestamp() }));
+      return;
+    }
+    if (item.kind === "decision" && item.raw) {
+      saveDecision({ ...item.raw, state: "Aprobada", updatedAt: timestamp() });
+    }
+    executiveActionCompleted("Tema resuelto. G-OS recalculo briefing y tranquilidad.");
+  }
+
+  function postponeExecutiveItem(item) {
+    const nextDate = window.prompt("Nueva fecha sugerida YYYY-MM-DD", tomorrowKey());
+    if (!nextDate) return;
+    window.GOSExecutiveDecisionCenter.updateItem(item.id, { status: "Pospuesto", postponedTo: nextDate });
+    if (item.kind === "seguimiento") {
+      updateFollowup(item.sourceId, () => ({ fechaSugerida: nextDate, estado: "Pendiente" }));
+      return;
+    }
+    executiveActionCompleted("Tema pospuesto. G-OS recalculo prioridades.");
+  }
+
+  function delegateExecutiveItem(item) {
+    window.GOSExecutiveDecisionCenter.updateItem(item.id, { status: "Delegado", delegatedAt: timestamp() });
+    executiveActionCompleted("Tema delegado. G-OS lo mantiene en seguimiento.");
+  }
+
+  function archiveExecutiveItem(item) {
+    window.GOSExecutiveDecisionCenter.updateItem(item.id, { status: "Archivado", archivedAt: timestamp() });
+    if (item.kind === "seguimiento") {
+      updateFollowup(item.sourceId, () => ({ estado: "Archivado" }));
+      return;
+    }
+    if (item.kind === "decision" && item.raw) {
+      saveDecision({ ...item.raw, state: "Archivada", updatedAt: timestamp() });
+    }
+    executiveActionCompleted("Tema archivado. G-OS recalculo briefing y agenda.");
+  }
+
+  function createCodexFromExecutiveItem(item) {
+    const prompt = [
+      "MISION PARA CODEX - CENTRO EJECUTIVO",
+      "",
+      "Contexto recuperado:",
+      `${item.title}`,
+      `${item.empresaPersona} | ${item.proyecto}`,
+      `Origen: ${item.origen}`,
+      `Motivo: ${item.motivo}`,
+      "",
+      "Objetivo:",
+      item.accionSugerida,
+      "",
+      "Entregables:",
+      "- Resumen ejecutivo.",
+      "- Opciones de accion.",
+      "- Recomendacion concreta.",
+      "- Proximo paso listo para Guillermo.",
+      "",
+      "Restricciones:",
+      "- No inventar datos.",
+      "- Mantenerlo accionable desde iPhone.",
+      "- No modificar correos ni sistemas externos.",
+      "",
+      "Criterio de aprobacion:",
+      "Guillermo debe poder decidir o delegar en menos de 2 minutos."
+    ].join("\n");
+    localStorage.setItem(missionKey, prompt);
+    missionPrompt.textContent = prompt;
+    missionStatus.textContent = "Mision Codex creada desde Centro Ejecutivo.";
+    window.GOSExecutiveDecisionCenter.updateItem(item.id, { status: "Delegado a Codex", missionCreatedAt: timestamp() });
+    runDayRoutine("executive_codex");
+    renderAll();
+    activatePanel("codex");
+  }
+
+  function renderExecutiveItem(item) {
+    const card = makeElement("article", "row-card executive-card");
+    card.dataset.level = item.nivel;
+    const header = makeElement("div", "row-header compact-header");
+    header.appendChild(makeElement("span", `level-chip level-${item.nivel.toLowerCase()}`, item.nivel));
+    header.appendChild(makeElement("span", "state-chip", item.status || "Pendiente"));
+    card.appendChild(header);
+    card.appendChild(makeElement("h3", null, item.title));
+    card.appendChild(makeElement("p", null, item.empresaPersona));
+    card.appendChild(makeElement("p", "muted", `${item.proyecto} | ${item.origen}`));
+    card.appendChild(makeElement("p", "muted", `Motivo: ${item.motivo}`));
+    card.appendChild(makeElement("p", "muted", `Accion sugerida: ${item.accionSugerida}`));
+    card.appendChild(makeElement("p", "muted", `Fecha/hora: ${formatExecutiveDate(item.fechaHora)}`));
+
+    const actions = makeElement("div", "button-row executive-card-actions");
+    actions.appendChild(makeAction("Resolver", "primary-button compact", () => resolveExecutiveItem(item)));
+    actions.appendChild(makeAction("Posponer", "secondary-button compact", () => postponeExecutiveItem(item)));
+    actions.appendChild(makeAction("Delegar", "secondary-button compact", () => delegateExecutiveItem(item)));
+    actions.appendChild(makeAction("Crear mision Codex", "secondary-button compact", () => createCodexFromExecutiveItem(item)));
+    actions.appendChild(makeAction("Archivar", "ghost-button compact", () => archiveExecutiveItem(item)));
+    card.appendChild(actions);
+    return card;
+  }
+
+  function renderExecutiveDecisionCenter() {
+    const center = getExecutiveDecisionCenter();
+    const groups = center.groups || {};
+    executiveCenterSummary.textContent = center.summary.text;
+    executiveDecisionCenterList.innerHTML = "";
+    renderExecutiveSnapshot(center);
+    renderExecutiveKpis(center);
+
+    const sections = [
+      ["Decisiones criticas", groups.criticalDecisions || []],
+      ["Riesgos", groups.risks || []],
+      ["Oportunidades", groups.opportunities || []],
+      ["Seguimientos pendientes", groups.pendingFollowups || []]
+    ];
+
+    sections.forEach(([title, items]) => {
+      const sectionCard = makeElement("article", "row-card");
+      sectionCard.appendChild(makeElement("p", "section-label", title));
+      if (!items.length) {
+        sectionCard.appendChild(makeElement("p", "status-note", "Sin temas relevantes."));
+      }
+      items.slice(0, 6).forEach((item) => sectionCard.appendChild(renderExecutiveItem(item)));
+      executiveDecisionCenterList.appendChild(sectionCard);
+    });
+
+    const companyCard = makeElement("article", "row-card");
+    companyCard.appendChild(makeElement("p", "section-label", "Empresas con movimiento"));
+    const companies = groups.companies || [];
+    companyCard.appendChild(makeElement("p", null, companies.length ? companies.join(" · ") : "Sin empresas con movimiento."));
+    executiveDecisionCenterList.appendChild(companyCard);
+  }
+
   function findBriefingItems(title) {
     const section = data.briefing.find((item) => item.title === title);
     return section ? section.items : [];
@@ -1483,7 +1682,8 @@
       lastMission: localStorage.getItem(missionKey) || "",
       dailyLearning: localStorage.getItem(learningKey) || "",
       operationalDna: window.GOSKnowledgeRegistry.read(),
-      lifeLoop: window.GOSLifeLoopEngine.getState()
+      lifeLoop: window.GOSLifeLoopEngine.getState(),
+      executiveDecisionCenter: window.GOSExecutiveDecisionCenter.readState()
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1696,6 +1896,9 @@
 
     saveJson(createdDecisionKey, loadJson(createdDecisionKey, []).filter((decision) => !isDemo(decision)));
     saveFollowups(getFollowups().filter((followup) => !isDemo(followup)));
+    const executiveState = window.GOSExecutiveDecisionCenter.readState();
+    executiveState.items = Object.fromEntries(Object.entries(executiveState.items || {}).filter(([id]) => !id.includes("demo-")));
+    saveJson(window.GOSExecutiveDecisionCenter.stateKey, executiveState);
     clearDemoDna();
 
     if ((localStorage.getItem(missionKey) || "").includes("MISION PARA CODEX - DEMO G-OS")) {
@@ -1739,6 +1942,7 @@
         if (typeof payload.dailyLearning === "string") localStorage.setItem(learningKey, payload.dailyLearning);
         if (payload.operationalDna && typeof payload.operationalDna === "object") window.GOSKnowledgeRegistry.write(payload.operationalDna);
         if (payload.lifeLoop && typeof payload.lifeLoop === "object") saveJson("gos:lifeLoop", payload.lifeLoop);
+        if (payload.executiveDecisionCenter && typeof payload.executiveDecisionCenter === "object") saveJson(window.GOSExecutiveDecisionCenter.stateKey, payload.executiveDecisionCenter);
         setDataStatus("Datos importados.");
         renderAll();
       } catch (error) {
@@ -1858,6 +2062,7 @@
     renderProjects();
     renderDecisions();
     renderExecutiveAgenda();
+    renderExecutiveDecisionCenter();
     renderCodex();
     renderIdeas();
     renderContextSelector();
