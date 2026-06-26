@@ -13,6 +13,8 @@ if (-not $QueuePath) {
   $QueuePath = Join-Path $RepoRoot "app\desktop_observer\outlook_desktop_queue.json"
 }
 $StatePath = Join-Path $ScriptDir "outlook_desktop_state.json"
+$IdentityPath = Join-Path $ScriptDir "outlook_identity.json"
+$IdentityEnginePath = Join-Path $ScriptDir "outlook_identity_engine.ps1"
 
 function Get-NowIso {
   return (Get-Date).ToUniversalTime().ToString("o")
@@ -176,14 +178,125 @@ function Get-InboxFromStore {
   return $null
 }
 
+function Test-IdentityFresh {
+  param($Identity)
+  if (-not $Identity) { return $false }
+  if (-not $Identity.principalStore -or -not $Identity.principalInbox) { return $false }
+  try {
+    $last = [datetime]$Identity.lastCalibration
+    return $last -gt (Get-Date).AddHours(-12)
+  } catch {
+    return $false
+  }
+}
+
+function Invoke-IdentityCalibration {
+  if (-not (Test-Path -LiteralPath $IdentityEnginePath)) { return $null }
+  try {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $IdentityEnginePath -Silent | Out-Null
+    return Read-JsonFile -Path $IdentityPath -Fallback $null
+  } catch {
+    return $null
+  }
+}
+
+function Get-StoreByIdentity {
+  param($Namespace, $Identity)
+  if (-not $Identity) { return $null }
+  foreach ($store in @($Namespace.Stores)) {
+    try {
+      if ([string]$store.DisplayName -eq [string]$Identity.principalStore) {
+        return $store
+      }
+    } catch {}
+  }
+  return $null
+}
+
+function Get-IdentityInboxContext {
+  param($Namespace)
+  $identity = Read-JsonFile -Path $IdentityPath -Fallback $null
+  $calibrated = $false
+
+  if (-not (Test-IdentityFresh -Identity $identity)) {
+    $identity = Invoke-IdentityCalibration
+    $calibrated = $true
+  }
+
+  if (-not (Test-IdentityFresh -Identity $identity)) {
+    return [pscustomobject]@{
+      Valid = $false
+      Identity = $identity
+      Store = $null
+      Inbox = $null
+      Calibrated = $calibrated
+      Reason = "Identidad inexistente, incompleta o vencida"
+    }
+  }
+
+  $store = Get-StoreByIdentity -Namespace $Namespace -Identity $identity
+  if (-not $store) {
+    return [pscustomobject]@{
+      Valid = $false
+      Identity = $identity
+      Store = $null
+      Inbox = $null
+      Calibrated = $calibrated
+      Reason = "Store principal no encontrado en Outlook"
+    }
+  }
+
+  $inbox = Get-InboxFromStore -Store $store
+  if (-not $inbox) {
+    return [pscustomobject]@{
+      Valid = $false
+      Identity = $identity
+      Store = $store
+      Inbox = $null
+      Calibrated = $calibrated
+      Reason = "Inbox principal no encontrada"
+    }
+  }
+
+  return [pscustomobject]@{
+    Valid = $true
+    Identity = $identity
+    Store = $store
+    Inbox = $inbox
+    Calibrated = $calibrated
+    Reason = "Identity Engine activo"
+  }
+}
+
 function Get-RecentInboxMail {
   $outlook = Get-OutlookApplication
   $namespace = $outlook.GetNamespace("MAPI")
   $messages = @()
   $debugStores = @()
   $latestObservation = $null
+  $identityContext = Get-IdentityInboxContext -Namespace $namespace
+  $storesToReview = @()
 
-  foreach ($store in @($namespace.Stores)) {
+  if ($identityContext.Valid) {
+    $storesToReview += [pscustomobject]@{
+      Store = $identityContext.Store
+      Inbox = $identityContext.Inbox
+      IdentityUsed = $true
+    }
+    Write-Host "Identity Engine: usando Inbox principal $($identityContext.Identity.principalInbox)"
+  } else {
+    Write-Host "Identity Engine: fallback a escaneo completo. $($identityContext.Reason)"
+    foreach ($store in @($namespace.Stores)) {
+      $storesToReview += [pscustomobject]@{
+        Store = $store
+        Inbox = $null
+        IdentityUsed = $false
+      }
+    }
+  }
+
+  foreach ($review in @($storesToReview)) {
+    $store = $review.Store
     $storeName = "Store sin nombre"
     try { $storeName = [string]$store.DisplayName } catch {}
     Write-Host "Store: $storeName"
@@ -196,10 +309,11 @@ function Get-RecentInboxMail {
       latestSubject = ""
       latestReceivedTime = ""
       reasonIfSkipped = ""
+      identityUsed = [bool]$review.IdentityUsed
     }
 
     try {
-      $inbox = Get-InboxFromStore -Store $store
+      $inbox = if ($review.Inbox) { $review.Inbox } else { Get-InboxFromStore -Store $store }
       if (-not $inbox) {
         $storeDebug.reasonIfSkipped = "Inbox no encontrada"
         Write-Host "  Inbox: no encontrada"
@@ -284,6 +398,18 @@ function Get-RecentInboxMail {
       latestReceivedTime = if ($latestObservation) { $latestObservation.timestamp } else { "" }
       reasonIfSkipped = ($debugStores | Where-Object { $_.reasonIfSkipped } | ForEach-Object { "$($_.storeName): $($_.reasonIfSkipped)" }) -join "; "
       stores = $debugStores
+      identity = [ordered]@{
+        used = [bool]$identityContext.Valid
+        principalStore = $(if ($identityContext.Identity) { $identityContext.Identity.principalStore } else { "" })
+        principalInbox = $(if ($identityContext.Identity) { $identityContext.Identity.principalInbox } else { "" })
+        principalAccount = $(if ($identityContext.Identity) { $identityContext.Identity.principalAccount } else { "" })
+        confidence = $(if ($identityContext.Identity) { $identityContext.Identity.confidence } else { "" })
+        status = $(if ($identityContext.Identity) { $identityContext.Identity.status } else { "" })
+        score = $(if ($identityContext.Identity) { $identityContext.Identity.score } else { 0 })
+        lastCalibration = $(if ($identityContext.Identity) { $identityContext.Identity.lastCalibration } else { "" })
+        selectionReason = $(if ($identityContext.Identity) { $identityContext.Identity.selectionReason } else { $identityContext.Reason })
+        calibratedThisCycle = [bool]$identityContext.Calibrated
+      }
     }
   }
 }
@@ -366,6 +492,7 @@ function Invoke-OutlookDesktopCycle {
       intervalSeconds = $IntervalSeconds
       observations = $allObservations
       debug = $debug
+      identity = $debug.identity
       error = $null
     })
   } catch {
@@ -380,6 +507,7 @@ function Invoke-OutlookDesktopCycle {
       intervalSeconds = $IntervalSeconds
       observations = $queueObservations
       debug = $queueDebug
+      identity = if ($queueDebug) { $queueDebug.identity } else { $null }
       error = $_.Exception.Message
     })
   }

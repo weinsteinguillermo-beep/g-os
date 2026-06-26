@@ -1,0 +1,42 @@
+{
+  "principalStore": "guillermo@empresa.com",
+  "principalInbox": "\\\\guillermo@empresa.com\\Inbox",
+  "principalAccount": "guillermo@empresa.com",
+  "confidence": "Alta",
+  "status": "Estable",
+  "score": 220,
+  "lastCalibration": "2026-06-26T12:00:00.0000000Z",
+  "activityHistory": [
+    {
+      "timestamp": "2026-06-26T12:00:00.0000000Z",
+      "selectedStore": "guillermo@empresa.com",
+      "selectedInbox": "\\\\guillermo@empresa.com\\Inbox",
+      "score": 220,
+      "confidence": "Alta"
+    }
+  ],
+  "ranking": [
+    {
+      "name": "guillermo@empresa.com",
+      "type": "ExchangeMailbox",
+      "path": "\\\\guillermo@empresa.com",
+      "inbox": "\\\\guillermo@empresa.com\\Inbox",
+      "totalItems": 1250,
+      "latestMail": "Ejemplo de correo reciente",
+      "latestMailDate": "2026-06-26T11:55:00.0000000Z",
+      "emailsToday": 12,
+      "emailsLast7Days": 84,
+      "emailsLast30Days": 260,
+      "activityScore": 220,
+      "reasons": [
+        "+100 correo hoy",
+        "+60 actividad ultima hora",
+        "+40 actividad ultimos 7 dias",
+        "+20 actividad ultimos 30 dias"
+      ],
+      "error": ""
+    }
+  ],
+  "selectionReason": "+100 correo hoy; +60 actividad ultima hora; +40 actividad ultimos 7 dias; +20 actividad ultimos 30 dias",
+  "readOnly": true
+}

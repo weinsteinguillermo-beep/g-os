@@ -78,8 +78,17 @@
   const desktopObserverInterval = document.getElementById("desktopObserverInterval");
   const desktopObserverNote = document.getElementById("desktopObserverNote");
   const desktopObserverResult = document.getElementById("desktopObserverResult");
+  const outlookIdentityAccount = document.getElementById("outlookIdentityAccount");
+  const outlookIdentityInbox = document.getElementById("outlookIdentityInbox");
+  const outlookIdentityScore = document.getElementById("outlookIdentityScore");
+  const outlookIdentityConfidence = document.getElementById("outlookIdentityConfidence");
+  const outlookIdentityReason = document.getElementById("outlookIdentityReason");
+  const outlookIdentityCalibration = document.getElementById("outlookIdentityCalibration");
+  const outlookIdentityState = document.getElementById("outlookIdentityState");
+  const outlookIdentityNote = document.getElementById("outlookIdentityNote");
   const desktopObserverKey = "gos:outlookDesktopObserver";
   const desktopProcessedKey = "gos:outlookDesktopObserver:processed";
+  const outlookIdentityKey = "gos:outlookIdentity";
   const pipelineKey = "gos:pipelineStatus";
   const localBridgeUrl = "http://localhost:17829/outlook/queue";
   const validSources = {
@@ -731,6 +740,58 @@
     saveJson(desktopObserverKey, state);
   }
 
+  function getOutlookIdentityState() {
+    return loadJson(outlookIdentityKey, {
+      principalStore: "",
+      principalInbox: "",
+      principalAccount: "",
+      confidence: "Sin datos",
+      status: "Aprendiendo",
+      score: 0,
+      lastCalibration: "",
+      selectionReason: "Sin calibracion."
+    });
+  }
+
+  function saveOutlookIdentityState(identity) {
+    if (!identity) return getOutlookIdentityState();
+    const normalized = {
+      ...getOutlookIdentityState(),
+      ...identity
+    };
+    saveJson(outlookIdentityKey, normalized);
+    return normalized;
+  }
+
+  function renderOutlookIdentity(identity) {
+    const current = identity || getOutlookIdentityState();
+    outlookIdentityAccount.textContent = current.principalAccount || current.principalStore || "Sin calibrar";
+    outlookIdentityInbox.textContent = current.principalInbox || "Sin seleccionar";
+    outlookIdentityScore.textContent = current.score !== undefined ? current.score : 0;
+    outlookIdentityConfidence.textContent = current.confidence || "Sin datos";
+    outlookIdentityReason.textContent = current.selectionReason || "Sin calibracion.";
+    outlookIdentityCalibration.textContent = current.lastCalibration ? window.GOSSystemClock.formatSync(current.lastCalibration) : "Sin calibrar";
+    outlookIdentityState.textContent = current.status || "Aprendiendo";
+    document.body.dataset.identityState = String(current.status || "Aprendiendo").toLowerCase();
+  }
+
+  async function readOutlookIdentity(options) {
+    const silent = options && options.silent;
+    try {
+      const identity = await fetchJsonWithTimeout(`./desktop_observer/outlook_identity.json?ts=${Date.now()}`, 1200);
+      saveOutlookIdentityState(identity);
+      renderOutlookIdentity(identity);
+      if (!silent) outlookIdentityNote.textContent = "Identidad de Outlook actualizada desde runtime local.";
+      return identity;
+    } catch (error) {
+      renderOutlookIdentity();
+      if (!silent) {
+        outlookIdentityNote.textContent = "No encontre identidad local. Ejecutar desktop_observers/START_OUTLOOK_IDENTITY_ENGINE.cmd y volver a recalibrar.";
+      }
+      return null;
+    }
+  }
+
   function getDesktopProcessedIds() {
     return loadJson(desktopProcessedKey, []);
   }
@@ -957,10 +1018,14 @@
       lastEmail: queue.lastEmail || null,
       processedCount: queue.processedCount || processedIds.length,
       intervalSeconds: queue.intervalSeconds || Number(desktopObserverInterval.value) || 30,
-      error: queue.error || ""
+      error: queue.error || "",
+      identity: queue.identity || queue.debug && queue.debug.identity || null
     };
     saveDesktopObserverState(state);
     renderDesktopObserver(state, silent ? undefined : newObservations.length);
+    if (state.identity) {
+      renderOutlookIdentity(saveOutlookIdentityState(state.identity));
+    }
 
     if (queue.bridgeUnavailable) {
       savePipelineStatus({
@@ -2579,6 +2644,7 @@
     updateSystemStatus();
     updateHeartStatus();
     renderDesktopObserver();
+    renderOutlookIdentity();
     renderPipelineStatus();
   }
 
@@ -2591,6 +2657,7 @@
   document.getElementById("readOutlookEmails").addEventListener("click", readOutlookEmails);
   document.getElementById("startDesktopObserver").addEventListener("click", startDesktopObserverPolling);
   document.getElementById("stopDesktopObserver").addEventListener("click", stopDesktopObserverPolling);
+  document.getElementById("recalibrateOutlookIdentity").addEventListener("click", () => readOutlookIdentity());
   beatNow.addEventListener("click", beatNowAction);
   document.getElementById("loadDemo").addEventListener("click", loadDemo);
   document.getElementById("clearDemo").addEventListener("click", () => clearDemo());
@@ -2623,6 +2690,7 @@
   loadOutlookConfig();
   renderOutlookStatus();
   renderDesktopObserver();
+  readOutlookIdentity({ silent: true });
   handleOutlookRedirect();
   observerBus.initialize();
   observerBus.checkUpdates();

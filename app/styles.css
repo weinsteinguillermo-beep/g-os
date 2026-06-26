@@ -218,6 +218,14 @@ body[data-pipeline-state="activo"] .pipeline-panel {
   border-color: var(--accent);
 }
 
+body[data-identity-state="estable"] .outlook-identity-card {
+  border-color: var(--accent);
+}
+
+body[data-identity-state="inconsistente"] .outlook-identity-card {
+  border-color: var(--danger);
+}
+
 body[data-pipeline-state="error"] .pipeline-panel {
   border-color: var(--danger);
 }
@@ -496,7 +504,8 @@ h3 {
   margin-bottom: 0;
 }
 
-.desktop-observer-card {
+.desktop-observer-card,
+.outlook-identity-card {
   margin-top: 14px;
 }
 
@@ -556,6 +565,15 @@ h3 {
 
 .observer-status-grid strong {
   color: var(--ink);
+}
+
+.identity-status-grid p:nth-child(2),
+.identity-status-grid p:nth-child(5) {
+  grid-column: 1 / -1;
+}
+
+.identity-status-grid span {
+  word-break: break-word;
 }
 
 .row-header {

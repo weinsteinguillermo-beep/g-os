@@ -30,6 +30,8 @@ app/desktop_observer/*.tmp
 desktop_observers/*.json
 desktop_observers/*.log
 desktop_observers/*.tmp
+desktop_observers/outlook_identity.json
+app/desktop_observer/outlook_identity.json
 
 app/runtime/**
 app/cache/**
