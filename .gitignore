@@ -22,3 +22,22 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# G-OS runtime data
+app/desktop_observer/*.json
+app/desktop_observer/*.log
+app/desktop_observer/*.tmp
+
+desktop_observers/*.json
+desktop_observers/*.log
+desktop_observers/*.tmp
+
+app/runtime/**
+app/cache/**
+app/local_data/**
+
+# Keep examples
+!app/desktop_observer/*.example.json
+!desktop_observers/*.example.json
+!app/runtime/.gitkeep
+!app/cache/.gitkeep
+!app/local_data/.gitkeep

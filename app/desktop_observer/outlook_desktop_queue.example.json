@@ -1,0 +1,17 @@
+{
+  "status": "Esperando",
+  "lastReview": null,
+  "lastEmail": null,
+  "processedCount": 0,
+  "intervalSeconds": 30,
+  "observations": [],
+  "error": null,
+  "debug": {
+    "storesChecked": [],
+    "inboxesFound": [],
+    "totalItems": 0,
+    "latestSubject": null,
+    "latestReceivedTime": null,
+    "reasonIfSkipped": "Archivo de ejemplo. El archivo real se genera localmente y no se versiona."
+  }
+}
