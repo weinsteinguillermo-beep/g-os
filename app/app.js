@@ -32,6 +32,8 @@
   const pipelineLastHeart = document.getElementById("pipelineLastHeart");
   const pipelineProcessedCount = document.getElementById("pipelineProcessedCount");
   const pipelinePendingCount = document.getElementById("pipelinePendingCount");
+  const pipelineDebug = document.getElementById("pipelineDebug");
+  const pipelineError = document.getElementById("pipelineError");
   const projectsList = document.getElementById("projectsList");
   const decisionsList = document.getElementById("decisionsList");
   const executiveAgendaList = document.getElementById("executiveAgendaList");
@@ -439,60 +441,91 @@
   }
 
   function processCognitiveMailObservation(rawObservation) {
+    const observationId = rawObservation && rawObservation.id ? rawObservation.id : "sin-id";
     if (!window.GOSCognitiveMailEngine) {
-      return {
-        observation: rawObservation,
-        analysis: null,
-        followupCreated: false,
-        decisionCreated: false
-      };
+      const error = new Error(`CognitiveMailEngine: motor no disponible para observation ${observationId}`);
+      markStageError("Cognitive", error, { observationId });
+      throw error;
     }
 
-    const result = window.GOSCognitiveMailEngine.processEmail(rawObservation);
-    const observation = observerBus.recordObservation(result.observation);
-    const followupCreated = upsertFollowup(result.followup);
-    const decisionCreated = upsertCreatedDecision(result.decision);
+    let result;
+    let observation;
+    let followupCreated = false;
+    let decisionCreated = false;
+
+    try {
+      result = window.GOSCognitiveMailEngine.processEmail(rawObservation);
+      observation = observerBus.recordObservation(result.observation);
+      markStageOk("Cognitive", {
+        observationId,
+        message: `Clasificado: ${(result.analysis.categories || []).join(", ")}`
+      });
+    } catch (error) {
+      markStageError("Cognitive", error, { observationId });
+      throw error;
+    }
+
+    try {
+      followupCreated = upsertFollowup(result.followup);
+      decisionCreated = upsertCreatedDecision(result.decision);
+      markStageOk("Decision", {
+        observationId,
+        message: decisionCreated ? "Decision creada/actualizada" : followupCreated ? "Seguimiento creado" : "Sin decision nueva"
+      });
+    } catch (error) {
+      markStageError("Decision", error, { observationId });
+      throw error;
+    }
 
     if (result.analysis && window.GOSKnowledgeRegistry) {
-      const extract = result.analysis.extract;
-      window.GOSKnowledgeRegistry.upsert("empresas", extract.empresa, {
-        nombre: extract.empresa,
-        relacion: extract.prioridad === "HIGH" ? "Estrategica" : "Operativa",
-        proyectos: [extract.proyecto],
-        oportunidades: result.analysis.categories.includes("Oportunidad") ? [extract.temaPrincipal] : [],
-        problemas: result.analysis.categories.includes("Problema") ? [extract.temaPrincipal] : [],
-        historialEntrada: {
-          id: observation.id,
-          title: extract.temaPrincipal,
-          description: observation.description,
-          type: result.analysis.categories.join(", "),
-          timestamp: observation.timestamp
-        }
-      }, `Cognitive Mail actualizo empresa: ${extract.empresa}`);
-      if (extract.persona) {
-        window.GOSKnowledgeRegistry.upsert("personas", extract.persona, {
-          nombre: extract.persona,
-          empresa: extract.empresa,
-          ultimoContacto: observation.timestamp,
-          nivelEstrategico: extract.prioridad === "HIGH" ? "Alto" : "Medio",
-          compromisos: result.followup ? [result.followup.motivo] : [],
+      try {
+        const extract = result.analysis.extract;
+        window.GOSKnowledgeRegistry.upsert("empresas", extract.empresa, {
+          nombre: extract.empresa,
+          relacion: extract.prioridad === "HIGH" ? "Estrategica" : "Operativa",
+          proyectos: [extract.proyecto],
+          oportunidades: result.analysis.categories.includes("Oportunidad") ? [extract.temaPrincipal] : [],
+          problemas: result.analysis.categories.includes("Problema") ? [extract.temaPrincipal] : [],
           historialEntrada: {
             id: observation.id,
             title: extract.temaPrincipal,
             description: observation.description,
+            type: result.analysis.categories.join(", "),
             timestamp: observation.timestamp
           }
-        }, `Cognitive Mail actualizo persona: ${extract.persona}`);
+        }, `Cognitive Mail actualizo empresa: ${extract.empresa}`);
+        if (extract.persona) {
+          window.GOSKnowledgeRegistry.upsert("personas", extract.persona, {
+            nombre: extract.persona,
+            empresa: extract.empresa,
+            ultimoContacto: observation.timestamp,
+            nivelEstrategico: extract.prioridad === "HIGH" ? "Alto" : "Medio",
+            compromisos: result.followup ? [result.followup.motivo] : [],
+            historialEntrada: {
+              id: observation.id,
+              title: extract.temaPrincipal,
+              description: observation.description,
+              timestamp: observation.timestamp
+            }
+          }, `Cognitive Mail actualizo persona: ${extract.persona}`);
+        }
+        markStageOk("Cognitive", {
+          observationId,
+          message: "ADN actualizado"
+        });
+        emitPipeline(window.GOSEventBus.EVENTS.DNA_UPDATED, {
+          observationId: observation.id,
+          empresa: extract.empresa,
+          persona: extract.persona,
+          proyecto: extract.proyecto
+        }, {
+          lastModule: "ADN Operativo",
+          lastUnderstood: `${observation.title} | ${extract.proyecto}`
+        });
+      } catch (error) {
+        markStageError("Cognitive", error, { observationId });
+        throw error;
       }
-      emitPipeline(window.GOSEventBus.EVENTS.DNA_UPDATED, {
-        observationId: observation.id,
-        empresa: extract.empresa,
-        persona: extract.persona,
-        proyecto: extract.proyecto
-      }, {
-        lastModule: "ADN Operativo",
-        lastUnderstood: `${observation.title} | ${extract.proyecto}`
-      });
     }
 
     emitPipeline(window.GOSEventBus.EVENTS.MAIL_UNDERSTOOD, {
@@ -686,6 +719,9 @@
 
   function renderPipelineStatus(state) {
     const current = state || getPipelineStatus();
+    const busState = window.GOSEventBus ? window.GOSEventBus.getState() : { stages: {}, errors: [] };
+    const hasActiveError = Object.values(busState.stages || {}).some((stage) => stage.status === "error");
+    const lastError = hasActiveError ? ((busState.errors || [])[0] || current.lastError || null) : null;
     pipelineStatus.textContent = current.status || "Esperando";
     pipelineState.textContent = current.status || "Esperando";
     pipelineLastEvent.textContent = current.lastEvent || "Sin eventos";
@@ -697,6 +733,31 @@
     pipelineProcessedCount.textContent = current.processedCount || 0;
     pipelinePendingCount.textContent = current.pendingCount || 0;
     document.body.dataset.pipelineState = String(current.status || "Esperando").toLowerCase();
+
+    Array.from(pipelineDebug.querySelectorAll(".pipeline-stage")).forEach((node) => {
+      const stageName = node.dataset.stage;
+      const stage = (busState.stages || {})[stageName] || {};
+      const icon = stage.status === "ok" ? "🟢" : stage.status === "error" ? "🔴" : "⚪";
+      node.dataset.status = stage.status || "pending";
+      node.querySelector("span").textContent = icon;
+      node.querySelector("small").textContent = stage.message || "Esperando";
+      node.title = stage.error
+        ? `${stage.error.module}\n${stage.error.message}\n${stage.error.observationId}\n${stage.error.timestamp}\n${stage.error.stack || ""}`
+        : (stage.message || "Esperando");
+    });
+
+    if (lastError) {
+      pipelineError.hidden = false;
+      pipelineError.textContent = [
+        `${lastError.module}: ${lastError.message}`,
+        `Correo: ${lastError.observationId || "sin id"}`,
+        `Timestamp: ${lastError.timestamp}`,
+        lastError.stack ? `Stack:\n${lastError.stack}` : ""
+      ].filter(Boolean).join("\n");
+    } else {
+      pipelineError.hidden = true;
+      pipelineError.textContent = "";
+    }
   }
 
   function emitPipeline(type, payload, patch) {
@@ -707,6 +768,30 @@
       ...(patch || {})
     });
     return event;
+  }
+
+  function markStageOk(module, context) {
+    if (window.GOSEventBus) window.GOSEventBus.stageOk(module, context || {});
+    renderPipelineStatus();
+  }
+
+  function markStageError(module, error, context) {
+    const stage = window.GOSEventBus
+      ? window.GOSEventBus.stageError(module, error, context || {})
+      : null;
+    savePipelineStatus({
+      status: "Error",
+      lastEvent: `${module.toUpperCase()}_ERROR`,
+      lastModule: module,
+      lastError: stage ? stage.error : {
+        module,
+        observationId: context && context.observationId ? context.observationId : "",
+        message: error && error.message ? error.message : String(error || "Error desconocido"),
+        stack: error && error.stack ? error.stack : "",
+        timestamp: timestamp()
+      }
+    });
+    return stage;
   }
 
   function syncLegacyProcessedIds() {
@@ -731,30 +816,87 @@
 
   async function pollOutlookDesktopQueue(options) {
     const silent = options && options.silent;
+    let queue = null;
+    let observations = [];
+    let newObservations = [];
+    let known = new Set();
+    let latestMailLabel = "";
+
     try {
       const response = await fetch(`./desktop_observer/outlook_desktop_queue.json?ts=${Date.now()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Cola local no disponible.");
-      const queue = await response.json();
-      syncLegacyProcessedIds();
-      const processedIds = getDesktopProcessedIds();
-      const eventBusState = window.GOSEventBus.getState();
-      const known = new Set([...(processedIds || []), ...((eventBusState && eventBusState.processedIds) || [])]);
-      const observations = Array.isArray(queue.observations) ? queue.observations : [];
-      const newObservations = observations.filter((observation) => observation && observation.id && !known.has(observation.id));
-      const cognitiveResults = [];
-      const latestMailLabel = queue.lastEmail ? `${queue.lastEmail.title || "Correo"} | ${queue.lastEmail.sender || queue.lastEmail.entity || "General"}` : "";
+      queue = await response.json();
+      markStageOk("Queue", {
+        message: `Cola leida. Nuevos: ${queue.newObservationCount || 0}`
+      });
+    } catch (error) {
+      const state = {
+        ...getDesktopObserverState(),
+        status: "Esperando",
+        lastReview: timestamp(),
+        error: error.message
+      };
+      saveDesktopObserverState(state);
+      renderDesktopObserver(state, silent ? undefined : 0);
+      markStageError("Queue", error, { observationId: "" });
+      savePipelineStatus({
+        status: "Error",
+        lastEvent: "QUEUE_READ_FAILED",
+        lastModule: "Queue",
+        pendingCount: 0
+      });
+      desktopObserverNote.textContent = `Queue: ${error.message}`;
+      return;
+    }
 
-      if (queue.lastEmail) {
-        emitPipeline(window.GOSEventBus.EVENTS.MAIL_RECEIVED, {
-          observation: queue.lastEmail
-        }, {
-          status: queue.error ? "Error" : "Activo",
-          lastMail: latestMailLabel,
-          pendingCount: newObservations.length
-        });
-      }
+    syncLegacyProcessedIds();
+    const processedIds = getDesktopProcessedIds();
+    const eventBusState = window.GOSEventBus.getState();
+    known = new Set([...(processedIds || []), ...((eventBusState && eventBusState.processedIds) || [])]);
+    observations = Array.isArray(queue.observations) ? queue.observations : [];
+    newObservations = observations.filter((observation) => observation && observation.id && !known.has(observation.id));
+    latestMailLabel = queue.lastEmail ? `${queue.lastEmail.title || "Correo"} | ${queue.lastEmail.sender || queue.lastEmail.entity || "General"}` : "";
+    const cognitiveResults = [];
 
-      newObservations.forEach((observation) => {
+    const state = {
+      active: getDesktopObserverState().active,
+      status: queue.error ? "Error" : queue.status || "Activo",
+      lastReview: queue.lastReview || timestamp(),
+      lastEmail: queue.lastEmail || null,
+      processedCount: queue.processedCount || processedIds.length,
+      intervalSeconds: queue.intervalSeconds || Number(desktopObserverInterval.value) || 30,
+      error: queue.error || ""
+    };
+    saveDesktopObserverState(state);
+    renderDesktopObserver(state, silent ? undefined : newObservations.length);
+
+    if (queue.error) {
+      const error = new Error(queue.error);
+      markStageError("Observer", error, {
+        observationId: queue.latestObservationId || (queue.lastEmail && queue.lastEmail.id) || ""
+      });
+      desktopObserverNote.textContent = `Observer: ${queue.error}`;
+      return;
+    }
+
+    markStageOk("Observer", {
+      observationId: queue.latestObservationId || (queue.lastEmail && queue.lastEmail.id) || "",
+      message: queue.lastEmail ? `Detecto: ${queue.lastEmail.title || "Correo"}` : "Sin correo nuevo"
+    });
+
+    if (queue.lastEmail) {
+      emitPipeline(window.GOSEventBus.EVENTS.MAIL_RECEIVED, {
+        observation: queue.lastEmail
+      }, {
+        status: "Activo",
+        lastMail: latestMailLabel,
+        pendingCount: newObservations.length
+      });
+    }
+
+    for (const observation of newObservations) {
+      const observationId = observation.id || "sin-id";
+      try {
         emitPipeline(window.GOSEventBus.EVENTS.MAIL_RECEIVED, {
           observation
         }, {
@@ -763,53 +905,70 @@
           pendingCount: Math.max(0, newObservations.length - cognitiveResults.length)
         });
         cognitiveResults.push(processCognitiveMailObservation(observation));
-        known.add(observation.id);
-        window.GOSEventBus.markProcessed(observation.id);
-      });
+        known.add(observationId);
+        window.GOSEventBus.markProcessed(observationId);
+      } catch (error) {
+        desktopObserverNote.textContent = `Pipeline: fallo procesando ${observationId}. ${error.message}`;
+      }
+    }
 
-      saveDesktopProcessedIds(Array.from(known));
+    saveDesktopProcessedIds(Array.from(known));
 
-      const state = {
-        active: getDesktopObserverState().active,
-        status: queue.error ? "Error" : queue.status || "Activo",
-        lastReview: queue.lastReview || timestamp(),
-        lastEmail: queue.lastEmail || null,
-        processedCount: queue.processedCount || processedIds.length,
-        intervalSeconds: queue.intervalSeconds || Number(desktopObserverInterval.value) || 30,
-        error: queue.error || ""
-      };
-      saveDesktopObserverState(state);
-      renderDesktopObserver(state, silent ? undefined : newObservations.length);
-
-      if (queue.error) {
-        savePipelineStatus({
-          status: "Error",
-          lastModule: "Outlook Desktop Observer",
-          pendingCount: newObservations.length
-        });
-        desktopObserverNote.textContent = queue.error;
-      } else if (newObservations.length) {
+    if (newObservations.length && cognitiveResults.length) {
+      try {
         renderCognitiveMailSummary(cognitiveResults);
-        desktopObserverNote.textContent = "Correo detectado. G-OS clasifico, extrajo entidades y actualizo briefing.";
-        runDayRoutine("outlook_desktop");
-        const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
-        renderAll();
-        updateHeartStatus(loopState);
+        markStageOk("Cognitive", {
+          message: `Resumen actualizado: ${cognitiveResults.length} correos`
+        });
+      } catch (error) {
+        markStageError("Cognitive", error, {
+          observationId: cognitiveResults[0] && cognitiveResults[0].observation ? cognitiveResults[0].observation.id : ""
+        });
+      }
+
+      try {
+        renderBriefing();
+        renderExecutiveAgenda();
         emitPipeline(window.GOSEventBus.EVENTS.BRIEFING_UPDATED, {
-          count: newObservations.length
+          count: cognitiveResults.length
         }, {
           lastModule: "Daily Briefing",
           lastRecalc: timestamp(),
           processedCount: known.size,
-          pendingCount: 0
+          pendingCount: Math.max(0, newObservations.length - cognitiveResults.length)
+        });
+      } catch (error) {
+        markStageError("Decision", error, {
+          observationId: cognitiveResults[0] && cognitiveResults[0].observation ? cognitiveResults[0].observation.id : ""
+        });
+      }
+
+      try {
+        renderExecutiveDecisionCenter();
+        markStageOk("Executive", {
+          message: "Tarjetas actualizadas"
         });
         emitPipeline(window.GOSEventBus.EVENTS.EXECUTIVE_CENTER_UPDATED, {
-          count: newObservations.length
+          count: cognitiveResults.length
         }, {
           lastModule: "Centro Ejecutivo",
           lastRecalc: timestamp(),
           processedCount: known.size,
-          pendingCount: 0
+          pendingCount: Math.max(0, newObservations.length - cognitiveResults.length)
+        });
+      } catch (error) {
+        markStageError("Executive", error, {
+          observationId: cognitiveResults[0] && cognitiveResults[0].observation ? cognitiveResults[0].observation.id : ""
+        });
+      }
+
+      try {
+        runDayRoutine("outlook_desktop");
+        const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
+        updateHeartStatus(loopState);
+        renderHeartHistory();
+        markStageOk("LifeLoop", {
+          message: `Latido ${loopState.state}`
         });
         emitPipeline(window.GOSEventBus.EVENTS.HEART_STATUS_UPDATED, {
           state: loopState.state,
@@ -821,31 +980,28 @@
           processedCount: known.size,
           pendingCount: 0
         });
-      } else {
-        savePipelineStatus({
-          status: "Esperando",
-          lastMail: latestMailLabel || getPipelineStatus().lastMail,
-          processedCount: known.size,
-          pendingCount: window.GOSEventBus.pendingCount(observations)
+      } catch (error) {
+        markStageError("LifeLoop", error, {
+          observationId: cognitiveResults[0] && cognitiveResults[0].observation ? cognitiveResults[0].observation.id : ""
         });
-        desktopObserverNote.textContent = "Observer activo. Esperando nuevos correos de Outlook Desktop.";
       }
-    } catch (error) {
-      const state = {
-        ...getDesktopObserverState(),
-        status: "Esperando",
-        lastReview: timestamp(),
-        error: error.message
-      };
-      saveDesktopObserverState(state);
-      renderDesktopObserver(state, silent ? undefined : 0);
+
+      desktopObserverNote.textContent = "Correo detectado. Pipeline auditado y dashboard actualizado.";
+    } else if (newObservations.length && !cognitiveResults.length) {
       savePipelineStatus({
         status: "Error",
-        lastEvent: "QUEUE_ERROR",
-        lastModule: "Outlook Desktop Observer",
-        pendingCount: 0
+        lastModule: "Cognitive",
+        processedCount: known.size,
+        pendingCount: newObservations.length
       });
-      desktopObserverNote.textContent = "Esperando cola local. Ejecutar desktop_observers/START_OUTLOOK_DESKTOP_OBSERVER.cmd.";
+    } else {
+      savePipelineStatus({
+        status: "Esperando",
+        lastMail: latestMailLabel || getPipelineStatus().lastMail,
+        processedCount: known.size,
+        pendingCount: window.GOSEventBus.pendingCount(observations)
+      });
+      desktopObserverNote.textContent = "Observer activo. Esperando nuevos correos de Outlook Desktop.";
     }
   }
 

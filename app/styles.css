@@ -163,6 +163,57 @@ button {
   color: var(--ink);
 }
 
+.pipeline-debug {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pipeline-stage {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+  background: var(--surface-soft);
+  font-size: 12px;
+}
+
+.pipeline-stage span {
+  font-size: 16px;
+}
+
+.pipeline-stage small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-stage[data-status="ok"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pipeline-stage[data-status="error"] {
+  border-color: var(--danger);
+  background: #fff7f5;
+}
+
+.pipeline-error {
+  max-height: 180px;
+  overflow: auto;
+  margin: 12px 0 0;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: #fff7f5;
+  color: var(--danger);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
 body[data-pipeline-state="activo"] .pipeline-panel {
   border-color: var(--accent);
 }
@@ -801,6 +852,10 @@ body[data-mode="close"] .nav-button[data-target="context"] {
 
   .pipeline-grid {
     grid-template-columns: 1fr;
+  }
+
+  .pipeline-debug {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .executive-snapshot {

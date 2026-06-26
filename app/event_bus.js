@@ -12,6 +12,8 @@
     HEART_STATUS_UPDATED: "HEART_STATUS_UPDATED"
   };
 
+  const STAGES = ["Observer", "Queue", "Cognitive", "Decision", "Executive", "LifeLoop"];
+
   const listeners = {};
 
   function now() {
@@ -29,6 +31,70 @@
   function write(state) {
     localStorage.setItem(STATE_KEY, JSON.stringify(state));
     return state;
+  }
+
+  function serializeError(error, context) {
+    return {
+      module: context.module,
+      observationId: context.observationId || "",
+      message: error && error.message ? error.message : String(error || "Error desconocido"),
+      stack: error && error.stack ? error.stack : "",
+      timestamp: now()
+    };
+  }
+
+  function updateStage(module, patch) {
+    const state = read();
+    state.stages = state.stages || {};
+    state.stages[module] = {
+      module,
+      status: "ok",
+      message: "OK",
+      observationId: "",
+      updatedAt: now(),
+      ...(state.stages[module] || {}),
+      ...(patch || {})
+    };
+    write(state);
+    return state.stages[module];
+  }
+
+  function stageOk(module, context) {
+    return updateStage(module, {
+      status: "ok",
+      message: context && context.message ? context.message : "OK",
+      observationId: context && context.observationId ? context.observationId : "",
+      lastEvent: context && context.event ? context.event : "",
+      error: null,
+      updatedAt: now()
+    });
+  }
+
+  function stagePending(module, context) {
+    return updateStage(module, {
+      status: "pending",
+      message: context && context.message ? context.message : "Esperando",
+      observationId: context && context.observationId ? context.observationId : "",
+      error: null,
+      updatedAt: now()
+    });
+  }
+
+  function stageError(module, error, context) {
+    const serialized = serializeError(error, {
+      module,
+      observationId: context && context.observationId ? context.observationId : ""
+    });
+    const state = read();
+    state.errors = [serialized, ...((state.errors || []))].slice(0, 50);
+    write(state);
+    return updateStage(module, {
+      status: "error",
+      message: `${module}: ${serialized.message}`,
+      observationId: serialized.observationId,
+      error: serialized,
+      updatedAt: serialized.timestamp
+    });
   }
 
   function emit(type, payload) {
@@ -83,7 +149,19 @@
   }
 
   function getState() {
-    return read();
+    const state = read();
+    state.stages = state.stages || {};
+    STAGES.forEach((stage) => {
+      state.stages[stage] = state.stages[stage] || {
+        module: stage,
+        status: "pending",
+        message: "Esperando",
+        observationId: "",
+        updatedAt: null,
+        error: null
+      };
+    });
+    return state;
   }
 
   window.GOSEventBus = {
@@ -93,6 +171,9 @@
     wasProcessed,
     markProcessed,
     pendingCount,
+    stageOk,
+    stagePending,
+    stageError,
     getState,
     stateKey: STATE_KEY
   };

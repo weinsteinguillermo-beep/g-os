@@ -67,6 +67,15 @@
           <p><strong>Procesados:</strong> <span id="pipelineProcessedCount">0</span></p>
           <p><strong>Pendientes:</strong> <span id="pipelinePendingCount">0</span></p>
         </div>
+        <div class="pipeline-debug" id="pipelineDebug">
+          <div class="pipeline-stage" data-stage="Observer"><span>⚪</span><strong>Observer</strong><small>Esperando</small></div>
+          <div class="pipeline-stage" data-stage="Queue"><span>⚪</span><strong>Queue</strong><small>Esperando</small></div>
+          <div class="pipeline-stage" data-stage="Cognitive"><span>⚪</span><strong>Cognitive</strong><small>Esperando</small></div>
+          <div class="pipeline-stage" data-stage="Decision"><span>⚪</span><strong>Decision</strong><small>Esperando</small></div>
+          <div class="pipeline-stage" data-stage="Executive"><span>⚪</span><strong>Executive</strong><small>Esperando</small></div>
+          <div class="pipeline-stage" data-stage="LifeLoop"><span>⚪</span><strong>LifeLoop</strong><small>Esperando</small></div>
+        </div>
+        <pre class="pipeline-error" id="pipelineError" hidden></pre>
       </section>
 
       <section class="hero-brief">
