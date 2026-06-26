@@ -346,17 +346,23 @@ function Invoke-OutlookDesktopCycle {
 
     $lastObservation = if ($newObservations.Count) { $newObservations[-1] } elseif ($latestObservation) { $latestObservation } else { $queueLastEmail }
     $nextTotal = $stateTotalProcessed + $newObservations.Count
+    $latestObservationId = if ($lastObservation) { $lastObservation.id } else { "" }
 
     Write-JsonFile -Path $StatePath -Value ([ordered]@{
       initialized = $true
       processedEntryIds = @($known.Keys | Select-Object -Last 500)
       totalProcessed = $nextTotal
+      lastObservationId = $latestObservationId
+      lastCycleAt = Get-NowIso
     })
     Write-JsonFile -Path $QueuePath -Value ([ordered]@{
       status = "Activo"
       lastReview = Get-NowIso
       lastEmail = $lastObservation
       processedCount = $nextTotal
+      newObservationCount = $newObservations.Count
+      latestObservationId = $latestObservationId
+      queueUpdatedAt = Get-NowIso
       intervalSeconds = $IntervalSeconds
       observations = $allObservations
       debug = $debug
@@ -368,6 +374,9 @@ function Invoke-OutlookDesktopCycle {
       lastReview = Get-NowIso
       lastEmail = $queueLastEmail
       processedCount = $stateTotalProcessed
+      newObservationCount = 0
+      latestObservationId = ""
+      queueUpdatedAt = Get-NowIso
       intervalSeconds = $IntervalSeconds
       observations = $queueObservations
       debug = $queueDebug

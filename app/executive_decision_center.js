@@ -153,6 +153,7 @@
     const followups = input.seguimientos || input.followups || [];
     const agenda = input.agenda || [];
     const desktop = input.desktopObserver || {};
+    const eventBus = window.GOSEventBus ? window.GOSEventBus.getState() : {};
     const agendaBySource = new Map();
     agenda.forEach((item) => {
       if (item.source && item.source.id) agendaBySource.set(item.source.id, item);
@@ -192,6 +193,7 @@
       last: {
         receivedEmail: desktop.lastEmail || null,
         cognitiveEmail: lastCognitive,
+        processedEvent: eventBus.lastEvent || null,
         generatedDecision: lastDecision,
         suggestedAction: top ? top.accionSugerida : "Mantener seguimiento normal."
       },

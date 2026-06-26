@@ -22,6 +22,16 @@
   const beatStatus = document.getElementById("beatStatus");
   const heartChangeGrid = document.getElementById("heartChangeGrid");
   const heartHistoryList = document.getElementById("heartHistoryList");
+  const pipelineStatus = document.getElementById("pipelineStatus");
+  const pipelineState = document.getElementById("pipelineState");
+  const pipelineLastEvent = document.getElementById("pipelineLastEvent");
+  const pipelineLastMail = document.getElementById("pipelineLastMail");
+  const pipelineLastUnderstood = document.getElementById("pipelineLastUnderstood");
+  const pipelineLastModule = document.getElementById("pipelineLastModule");
+  const pipelineLastRecalc = document.getElementById("pipelineLastRecalc");
+  const pipelineLastHeart = document.getElementById("pipelineLastHeart");
+  const pipelineProcessedCount = document.getElementById("pipelineProcessedCount");
+  const pipelinePendingCount = document.getElementById("pipelinePendingCount");
   const projectsList = document.getElementById("projectsList");
   const decisionsList = document.getElementById("decisionsList");
   const executiveAgendaList = document.getElementById("executiveAgendaList");
@@ -68,6 +78,7 @@
   const desktopObserverResult = document.getElementById("desktopObserverResult");
   const desktopObserverKey = "gos:outlookDesktopObserver";
   const desktopProcessedKey = "gos:outlookDesktopObserver:processed";
+  const pipelineKey = "gos:pipelineStatus";
   let desktopObserverTimer = null;
   let lastDnaAnswer = null;
   const observerBus = window.GOSObserverBus.create([
@@ -252,6 +263,7 @@
     return {
       observe: () => observerBus.checkUpdates(),
       getInput: getEngineInput,
+      getLastEvent: () => window.GOSEventBus.getState().lastEvent || null,
       buildContext: (input) => window.GOSContextEngine.buildGraph(input),
       prioritize: (input) => window.GOSDecisionEngine.buildExecutiveAgenda(input),
       brief: (input) => window.GOSChiefOfStaff.generateDailyBriefing(input),
@@ -472,6 +484,34 @@
           }
         }, `Cognitive Mail actualizo persona: ${extract.persona}`);
       }
+      emitPipeline(window.GOSEventBus.EVENTS.DNA_UPDATED, {
+        observationId: observation.id,
+        empresa: extract.empresa,
+        persona: extract.persona,
+        proyecto: extract.proyecto
+      }, {
+        lastModule: "ADN Operativo",
+        lastUnderstood: `${observation.title} | ${extract.proyecto}`
+      });
+    }
+
+    emitPipeline(window.GOSEventBus.EVENTS.MAIL_UNDERSTOOD, {
+      observationId: observation.id,
+      title: observation.title,
+      analysis: result.analysis
+    }, {
+      lastModule: "Cognitive Mail Engine",
+      lastUnderstood: `${observation.title} | ${result.analysis.extract.proyecto}`
+    });
+
+    if (followupCreated || decisionCreated) {
+      emitPipeline(window.GOSEventBus.EVENTS.DECISION_UPDATED, {
+        observationId: observation.id,
+        followupCreated,
+        decisionCreated
+      }, {
+        lastModule: decisionCreated ? "Decision Engine" : "Seguimientos"
+      });
     }
 
     return {
@@ -548,6 +588,12 @@
       const emails = await modules.connector.readLatestEmails(10);
       const observations = emails.map((email) => {
         const observation = modules.connector.emitObservationFromEmail(email);
+        emitPipeline(window.GOSEventBus.EVENTS.MAIL_RECEIVED, {
+          observation
+        }, {
+          lastMail: `${observation.title} | ${observation.entity}`,
+          pendingCount: 1
+        });
         return processCognitiveMailObservation(observation);
       });
       renderOutlookResult(emails, observations.map((result) => result.observation));
@@ -557,6 +603,16 @@
       const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
       renderAll();
       updateHeartStatus(loopState);
+      emitPipeline(window.GOSEventBus.EVENTS.HEART_STATUS_UPDATED, {
+        state: loopState.state,
+        tranquility: loopState.tranquility
+      }, {
+        lastModule: "Life Loop",
+        lastRecalc: timestamp(),
+        lastHeart: loopState.lastBeat,
+        processedCount: (window.GOSEventBus.getState().processedIds || []).length,
+        pendingCount: 0
+      });
     } catch (error) {
       outlookStatus.textContent = error.message || "No se pudieron leer correos Outlook.";
     }
@@ -603,6 +659,60 @@
     saveJson(desktopProcessedKey, ids.slice(-500));
   }
 
+  function getPipelineStatus() {
+    return loadJson(pipelineKey, {
+      status: "Esperando",
+      lastEvent: "",
+      lastMail: "",
+      lastUnderstood: "",
+      lastModule: "",
+      lastRecalc: "",
+      lastHeart: "",
+      processedCount: 0,
+      pendingCount: 0
+    });
+  }
+
+  function savePipelineStatus(patch) {
+    const next = {
+      ...getPipelineStatus(),
+      ...patch,
+      updatedAt: timestamp()
+    };
+    saveJson(pipelineKey, next);
+    renderPipelineStatus(next);
+    return next;
+  }
+
+  function renderPipelineStatus(state) {
+    const current = state || getPipelineStatus();
+    pipelineStatus.textContent = current.status || "Esperando";
+    pipelineState.textContent = current.status || "Esperando";
+    pipelineLastEvent.textContent = current.lastEvent || "Sin eventos";
+    pipelineLastMail.textContent = current.lastMail || "Sin correo";
+    pipelineLastUnderstood.textContent = current.lastUnderstood || "Sin correo entendido";
+    pipelineLastModule.textContent = current.lastModule || "Sin actualizaciones";
+    pipelineLastRecalc.textContent = current.lastRecalc ? window.GOSSystemClock.formatSync(current.lastRecalc) : "Sin recalculo";
+    pipelineLastHeart.textContent = current.lastHeart ? window.GOSSystemClock.formatSync(current.lastHeart) : "Sin latido";
+    pipelineProcessedCount.textContent = current.processedCount || 0;
+    pipelinePendingCount.textContent = current.pendingCount || 0;
+    document.body.dataset.pipelineState = String(current.status || "Esperando").toLowerCase();
+  }
+
+  function emitPipeline(type, payload, patch) {
+    const event = window.GOSEventBus.emit(type, payload || {});
+    savePipelineStatus({
+      status: "Activo",
+      lastEvent: type,
+      ...(patch || {})
+    });
+    return event;
+  }
+
+  function syncLegacyProcessedIds() {
+    getDesktopProcessedIds().forEach((id) => window.GOSEventBus.markProcessed(id));
+  }
+
   function renderDesktopObserver(state, imported) {
     const current = state || getDesktopObserverState();
     desktopObserverStatus.textContent = current.status || (current.active ? "Activo" : "Esperando");
@@ -625,15 +735,36 @@
       const response = await fetch(`./desktop_observer/outlook_desktop_queue.json?ts=${Date.now()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Cola local no disponible.");
       const queue = await response.json();
+      syncLegacyProcessedIds();
       const processedIds = getDesktopProcessedIds();
-      const known = new Set(processedIds);
+      const eventBusState = window.GOSEventBus.getState();
+      const known = new Set([...(processedIds || []), ...((eventBusState && eventBusState.processedIds) || [])]);
       const observations = Array.isArray(queue.observations) ? queue.observations : [];
       const newObservations = observations.filter((observation) => observation && observation.id && !known.has(observation.id));
       const cognitiveResults = [];
+      const latestMailLabel = queue.lastEmail ? `${queue.lastEmail.title || "Correo"} | ${queue.lastEmail.sender || queue.lastEmail.entity || "General"}` : "";
+
+      if (queue.lastEmail) {
+        emitPipeline(window.GOSEventBus.EVENTS.MAIL_RECEIVED, {
+          observation: queue.lastEmail
+        }, {
+          status: queue.error ? "Error" : "Activo",
+          lastMail: latestMailLabel,
+          pendingCount: newObservations.length
+        });
+      }
 
       newObservations.forEach((observation) => {
+        emitPipeline(window.GOSEventBus.EVENTS.MAIL_RECEIVED, {
+          observation
+        }, {
+          status: "Activo",
+          lastMail: `${observation.title || "Correo"} | ${observation.sender || observation.entity || "General"}`,
+          pendingCount: Math.max(0, newObservations.length - cognitiveResults.length)
+        });
         cognitiveResults.push(processCognitiveMailObservation(observation));
         known.add(observation.id);
+        window.GOSEventBus.markProcessed(observation.id);
       });
 
       saveDesktopProcessedIds(Array.from(known));
@@ -651,6 +782,11 @@
       renderDesktopObserver(state, silent ? undefined : newObservations.length);
 
       if (queue.error) {
+        savePipelineStatus({
+          status: "Error",
+          lastModule: "Outlook Desktop Observer",
+          pendingCount: newObservations.length
+        });
         desktopObserverNote.textContent = queue.error;
       } else if (newObservations.length) {
         renderCognitiveMailSummary(cognitiveResults);
@@ -659,7 +795,39 @@
         const loopState = window.GOSLifeLoopEngine.beat(getLoopContext());
         renderAll();
         updateHeartStatus(loopState);
+        emitPipeline(window.GOSEventBus.EVENTS.BRIEFING_UPDATED, {
+          count: newObservations.length
+        }, {
+          lastModule: "Daily Briefing",
+          lastRecalc: timestamp(),
+          processedCount: known.size,
+          pendingCount: 0
+        });
+        emitPipeline(window.GOSEventBus.EVENTS.EXECUTIVE_CENTER_UPDATED, {
+          count: newObservations.length
+        }, {
+          lastModule: "Centro Ejecutivo",
+          lastRecalc: timestamp(),
+          processedCount: known.size,
+          pendingCount: 0
+        });
+        emitPipeline(window.GOSEventBus.EVENTS.HEART_STATUS_UPDATED, {
+          state: loopState.state,
+          tranquility: loopState.tranquility
+        }, {
+          lastModule: "Life Loop",
+          lastHeart: loopState.lastBeat,
+          lastRecalc: timestamp(),
+          processedCount: known.size,
+          pendingCount: 0
+        });
       } else {
+        savePipelineStatus({
+          status: "Esperando",
+          lastMail: latestMailLabel || getPipelineStatus().lastMail,
+          processedCount: known.size,
+          pendingCount: window.GOSEventBus.pendingCount(observations)
+        });
         desktopObserverNote.textContent = "Observer activo. Esperando nuevos correos de Outlook Desktop.";
       }
     } catch (error) {
@@ -671,6 +839,12 @@
       };
       saveDesktopObserverState(state);
       renderDesktopObserver(state, silent ? undefined : 0);
+      savePipelineStatus({
+        status: "Error",
+        lastEvent: "QUEUE_ERROR",
+        lastModule: "Outlook Desktop Observer",
+        pendingCount: 0
+      });
       desktopObserverNote.textContent = "Esperando cola local. Ejecutar desktop_observers/START_OUTLOOK_DESKTOP_OBSERVER.cmd.";
     }
   }
@@ -1063,6 +1237,7 @@
     const items = [
       ["Ultimo correo recibido", last.receivedEmail ? `${last.receivedEmail.title || "Correo"} | ${last.receivedEmail.sender || last.receivedEmail.entity || "Sin remitente"}` : "Sin correo recibido"],
       ["Ultimo correo entendido", last.cognitiveEmail ? `${last.cognitiveEmail.title} | ${last.cognitiveEmail.entity}` : "Sin correo procesado cognitivamente"],
+      ["Ultimo evento procesado", last.processedEvent ? `${last.processedEvent.type} | ${window.GOSSystemClock.formatSync(last.processedEvent.timestamp)}` : "Sin evento procesado"],
       ["Ultima decision generada", last.generatedDecision ? `${last.generatedDecision.title || last.generatedDecision.context}` : "Sin decision generada"],
       ["Ultima accion sugerida", last.suggestedAction || "Mantener seguimiento normal."]
     ];
@@ -2057,6 +2232,12 @@
     });
   }
 
+  function setupEventBus() {
+    Object.values(window.GOSEventBus.EVENTS).forEach((eventName) => {
+      window.GOSEventBus.on(eventName, () => renderPipelineStatus());
+    });
+  }
+
   function renderAll() {
     renderBriefing();
     renderProjects();
@@ -2072,6 +2253,7 @@
     updateSystemStatus();
     updateHeartStatus();
     renderDesktopObserver();
+    renderPipelineStatus();
   }
 
   document.getElementById("focusIdea").addEventListener("click", () => ideaInput.focus());
@@ -2110,6 +2292,7 @@
   });
 
   setupNavigation();
+  setupEventBus();
   loadOutlookConfig();
   renderOutlookStatus();
   renderDesktopObserver();

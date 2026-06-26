@@ -4,11 +4,11 @@
     { name: "Cliente", terms: ["cliente", "comprador", "venta", "consulta comercial"] },
     { name: "Proveedor", terms: ["proveedor", "suministro", "supplier", "fabricante", "distribuidor"] },
     { name: "Producción", terms: ["produccion", "producción", "planta", "fabricacion", "fabricación", "operacion", "operación"] },
-    { name: "Logística", terms: ["logistica", "logística", "carga", "aerea", "aérea", "maritima", "marítima", "embarque", "aduana", "flete", "transporte"] },
+    { name: "Logística", terms: ["logistica", "logística", "carga", "aerea", "aérea", "maritima", "marítima", "embarque", "aduana", "flete", "transporte", "shipping", "arrival", "eta", "delay", "congestion"] },
     { name: "Cobranza", terms: ["cobranza", "pago pendiente", "vencido", "deuda", "saldo"] },
     { name: "Factura", terms: ["factura", "invoice", "recibo", "comprobante"] },
     { name: "Oportunidad", terms: ["oportunidad", "interesado", "nuevo negocio", "propuesta", "licitacion", "licitación", "potencial"] },
-    { name: "Problema", terms: ["problema", "reclamo", "error", "demora", "bloqueo", "urgente", "riesgo", "incidente"] },
+    { name: "Problema", terms: ["problema", "reclamo", "error", "demora", "bloqueo", "urgente", "riesgo", "incidente", "delay", "delayed", "congestion", "retraso"] },
     { name: "Idea", terms: ["idea", "podriamos", "podríamos", "sugerencia", "alternativa"] },
     { name: "Seguimiento", terms: ["seguimiento", "pendiente", "recordatorio", "retomar", "respuesta pendiente"] },
     { name: "Agenda", terms: ["reunion", "reunión", "llamada", "agenda", "coordinar", "calendario", "mañana", "manana"] },
@@ -20,7 +20,7 @@
     { name: "Espera respuesta", terms: ["quedo atento", "aguardo", "espero respuesta", "confirmame", "confirmar", "responder"] },
     { name: "Confirma", terms: ["confirmo", "confirmamos", "aprobado", "ok", "de acuerdo", "recibido"] },
     { name: "Cancela", terms: ["cancelar", "cancelado", "suspender", "anular"] },
-    { name: "Riesgo", terms: ["riesgo", "urgente", "problema", "demora", "bloqueo", "reclamo", "vencido"] },
+    { name: "Riesgo", terms: ["riesgo", "urgente", "problema", "demora", "bloqueo", "reclamo", "vencido", "delay", "delayed", "congestion", "retraso"] },
     { name: "Oportunidad", terms: ["oportunidad", "interesado", "propuesta", "nuevo negocio", "potencial"] },
     { name: "Informa", terms: ["informo", "informamos", "adjunto", "envio", "envío", "comparto"] }
   ];
@@ -44,6 +44,7 @@
     "Oregon",
     "Log Max",
     "EcoLog",
+    "Market Support",
     "Klabin",
     "URUFOREST",
     "Mercado Forestal",
@@ -114,7 +115,7 @@
     if (email.priority === "HIGH" || email.priority === "Alta") return "HIGH";
     if (intents.includes("Riesgo") || categories.includes("Problema")) return "HIGH";
     if (intents.includes("Oportunidad") || categories.includes("Oportunidad")) return "HIGH";
-    if (hasAny(text, ["urgente", "precio", "margen", "contrato", "cliente", "proveedor", "pago vencido"])) return "HIGH";
+    if (hasAny(text, ["urgente", "precio", "margen", "contrato", "cliente", "proveedor", "pago vencido", "delay", "congestion", "retraso"])) return "HIGH";
     if (intents.includes("Solicita acción") || intents.includes("Espera respuesta") || categories.includes("Seguimiento")) return "MEDIUM";
     return email.priority || "LOW";
   }
@@ -133,6 +134,7 @@
   }
 
   function actionRequired(categories, intents) {
+    if (intents.includes("Riesgo") && categories.includes("Logística")) return "Revisar impacto del nuevo ETA y confirmar si afecta compromisos comerciales.";
     if (intents.includes("Riesgo")) return "Revisar riesgo y definir respuesta.";
     if (intents.includes("Oportunidad")) return "Evaluar oportunidad comercial y proximo paso.";
     if (intents.includes("Solicita acción")) return "Responder o delegar accion requerida.";

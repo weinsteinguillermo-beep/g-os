@@ -202,6 +202,7 @@
     const decisions = input.decisiones || input.decisions || [];
     const aprendizajes = input.aprendizajes || input.learnings || [];
     const observations = input.observaciones || input.observations || [];
+    const eventBus = window.GOSEventBus ? window.GOSEventBus.getState() : null;
     const contextGraph = input.contextGraph || null;
     const executiveAgenda = window.GOSDecisionEngine
       ? window.GOSDecisionEngine.buildExecutiveAgenda(input)
@@ -246,6 +247,11 @@
       observaciones: visibleObservations,
       agendaEjecutiva: executiveAgenda.slice(0, 5),
       aprendizajes: aprendizajes.slice(-3),
+      pipeline: eventBus ? {
+        ultimoEvento: eventBus.lastEvent || null,
+        ultimoProcesado: eventBus.lastProcessedId || null,
+        totalEventos: (eventBus.events || []).length
+      } : null,
       recomendacion
     };
   }

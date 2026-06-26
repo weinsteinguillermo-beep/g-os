@@ -49,6 +49,26 @@
         <div class="brief-grid" id="heartChangeGrid"></div>
       </section>
 
+      <section class="pipeline-panel" aria-label="Estado del Pipeline">
+        <div class="row-header compact-header">
+          <div>
+            <p class="section-label">Estado del Pipeline</p>
+            <h2 id="pipelineStatus">Esperando</h2>
+          </div>
+          <span class="state-chip" id="pipelineState">Esperando</span>
+        </div>
+        <div class="pipeline-grid">
+          <p><strong>Ultimo evento:</strong> <span id="pipelineLastEvent">Sin eventos</span></p>
+          <p><strong>Correo recibido:</strong> <span id="pipelineLastMail">Sin correo</span></p>
+          <p><strong>Correo entendido:</strong> <span id="pipelineLastUnderstood">Sin correo entendido</span></p>
+          <p><strong>Modulo actualizado:</strong> <span id="pipelineLastModule">Sin actualizaciones</span></p>
+          <p><strong>Ultimo recalculo:</strong> <span id="pipelineLastRecalc">Sin recalculo</span></p>
+          <p><strong>Latido por evento:</strong> <span id="pipelineLastHeart">Sin latido</span></p>
+          <p><strong>Procesados:</strong> <span id="pipelineProcessedCount">0</span></p>
+          <p><strong>Pendientes:</strong> <span id="pipelinePendingCount">0</span></p>
+        </div>
+      </section>
+
       <section class="hero-brief">
         <p class="section-label">Recomendacion del dia</p>
         <h2 id="dailyRecommendation">Elegir un foco ejecutivo antes de abrir nuevos frentes.</h2>
@@ -278,6 +298,7 @@
 
     <script src="./data.js"></script>
     <script src="./event_log.js"></script>
+    <script src="./event_bus.js"></script>
     <script src="./knowledge_registry.js"></script>
     <script src="./experience_engine.js"></script>
     <script src="./operational_dna.js"></script>

@@ -202,6 +202,7 @@
       const previous = read();
       const observed = context.observe ? context.observe() : [];
       const input = context.getInput();
+      const triggerEvent = context.getLastEvent ? context.getLastEvent() : null;
       const graph = context.buildContext(input);
       input.contextGraph = graph;
       const agenda = context.prioritize(input);
@@ -223,6 +224,7 @@
         tranquilidad: tranquility,
         tranquilidadTexto: label.text,
         reviso: ["Observer Bus", "Context Engine", "Decision Engine", "Chief of Staff", "ADN Operativo"],
+        disparadoPor: triggerEvent ? triggerEvent.type : "Ciclo automatico",
         encontro: summarizeFindings(input, agenda),
         cambio: change,
         resumenEjecutivo: summary,
@@ -245,6 +247,7 @@
         lastAgendaSignature: change.agendaFirma,
         lastBriefing: briefing,
         lastAgenda: (agenda || []).slice(0, 5),
+        lastTriggerEvent: triggerEvent,
         history: [heartbeat, ...(previous.history || [])].slice(0, HISTORY_LIMIT)
       };
 

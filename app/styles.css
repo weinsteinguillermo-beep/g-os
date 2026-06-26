@@ -133,6 +133,44 @@ button {
   font-size: 14px;
 }
 
+.pipeline-panel {
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.pipeline-panel h2 {
+  margin-bottom: 0;
+  font-size: 20px;
+}
+
+.pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+
+.pipeline-grid p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pipeline-grid strong {
+  color: var(--ink);
+}
+
+body[data-pipeline-state="activo"] .pipeline-panel {
+  border-color: var(--accent);
+}
+
+body[data-pipeline-state="error"] .pipeline-panel {
+  border-color: var(--danger);
+}
+
 .tranquility-score {
   display: grid;
   justify-items: center;
@@ -417,7 +455,7 @@ h3 {
 
 .executive-snapshot {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -758,6 +796,10 @@ body[data-mode="close"] .nav-button[data-target="context"] {
   }
 
   .heart-change .brief-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pipeline-grid {
     grid-template-columns: 1fr;
   }
 
