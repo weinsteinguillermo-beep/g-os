@@ -288,7 +288,7 @@
   }
 
   function getEngineInput() {
-    return {
+    const input = {
       ideas: getIdeas(),
       proyectos: data.projects,
       decisiones: getDecisions(),
@@ -297,6 +297,10 @@
       observaciones: observerBus.getObservations(),
       adn: window.GOSOperationalDNA ? window.GOSOperationalDNA.buildSnapshot() : null
     };
+    input.casos = window.GOSCognitiveConsolidationEngine
+      ? window.GOSCognitiveConsolidationEngine.buildCases(input)
+      : [];
+    return input;
   }
 
   function getContextGraph() {
@@ -1369,8 +1373,10 @@
 
     [
       {
-        title: "Decisiones",
-        items: briefing.decisiones.map((decision) => `${decision.priority}: ${decision.context}`)
+        title: briefing.casos && briefing.casos.length ? "Casos importantes" : "Decisiones",
+        items: briefing.casos && briefing.casos.length
+          ? briefing.casos.map((caso) => `${caso.prioridad}: ${caso.titulo} - ${caso.recommendation}`)
+          : briefing.decisiones.map((decision) => `${decision.priority}: ${decision.context}`)
       },
       {
         title: "Agenda ejecutiva",
@@ -1388,8 +1394,10 @@
       { title: "Riesgos", items: briefing.riesgos },
       { title: "Oportunidades", items: briefing.oportunidades },
       {
-        title: "Observaciones",
-        items: (briefing.observaciones || []).map((observation) => `${observation.source}: ${observation.title}`)
+        title: briefing.casos && briefing.casos.length ? "Contexto" : "Observaciones",
+        items: briefing.casos && briefing.casos.length
+          ? briefing.casos.map((caso) => `${caso.titulo}: ${(caso.evidence || []).slice(0, 3).join(" | ") || caso.lastMovement}`)
+          : (briefing.observaciones || []).map((observation) => `${observation.source}: ${observation.title}`)
       }
     ].forEach((section) => {
       if (section.custom && section.title === "Seguimientos de hoy") {
@@ -1560,13 +1568,21 @@
   function renderExecutiveSnapshot(center) {
     executiveSnapshot.innerHTML = "";
     const last = center.last || {};
-    const items = [
-      ["Ultimo correo recibido", last.receivedEmail ? `${last.receivedEmail.title || "Correo"} | ${last.receivedEmail.sender || last.receivedEmail.entity || "Sin remitente"}` : "Sin correo recibido"],
-      ["Ultimo correo entendido", last.cognitiveEmail ? `${last.cognitiveEmail.title} | ${last.cognitiveEmail.entity}` : "Sin correo procesado cognitivamente"],
-      ["Ultimo evento procesado", last.processedEvent ? `${last.processedEvent.type} | ${window.GOSSystemClock.formatSync(last.processedEvent.timestamp)}` : "Sin evento procesado"],
-      ["Ultima decision generada", last.generatedDecision ? `${last.generatedDecision.title || last.generatedDecision.context}` : "Sin decision generada"],
-      ["Ultima accion sugerida", last.suggestedAction || "Mantener seguimiento normal."]
-    ];
+    const groups = center.groups || {};
+    const topCase = (groups.cases || [])[0];
+    const items = (groups.cases || []).length
+      ? [
+        ["Caso principal", topCase ? topCase.title : "Sin caso principal"],
+        ["Situacion", topCase ? topCase.motivo : "Sin situacion abierta"],
+        ["Contexto reciente", topCase && topCase.raw ? (topCase.raw.lastMovement || (topCase.raw.evidence || [])[0] || "Contexto consolidado") : "Sin movimiento reciente"],
+        ["Recomendacion", topCase ? topCase.accionSugerida : "Mantener seguimiento normal."]
+      ]
+      : [
+        ["Ultimo correo recibido", last.receivedEmail ? `${last.receivedEmail.title || "Correo"} | ${last.receivedEmail.sender || last.receivedEmail.entity || "Sin remitente"}` : "Sin correo recibido"],
+        ["Ultimo correo entendido", last.cognitiveEmail ? `${last.cognitiveEmail.title} | ${last.cognitiveEmail.entity}` : "Sin correo procesado cognitivamente"],
+        ["Ultima decision generada", last.generatedDecision ? `${last.generatedDecision.title || last.generatedDecision.context}` : "Sin decision generada"],
+        ["Ultima accion sugerida", last.suggestedAction || "Mantener seguimiento normal."]
+      ];
 
     items.forEach(([label, value]) => {
       const card = makeElement("article", "brief-card");
@@ -1579,13 +1595,21 @@
   function renderExecutiveKpis(center) {
     executiveKpis.innerHTML = "";
     const groups = center.groups || {};
-    [
-      ["Decisiones criticas", (groups.criticalDecisions || []).length],
-      ["Riesgos", (groups.risks || []).length],
-      ["Oportunidades", (groups.opportunities || []).length],
-      ["Seguimientos", (groups.pendingFollowups || []).length],
-      ["Empresas con movimiento", (groups.companies || []).length]
-    ].forEach(([label, value]) => {
+    const rows = (groups.cases || []).length
+      ? [
+        ["Casos activos", (groups.cases || []).length],
+        ["Casos criticos", (groups.cases || []).filter((item) => item.nivel === "CRITICO").length],
+        ["Situaciones altas", (groups.cases || []).filter((item) => item.nivel === "ALTO").length],
+        ["Empresas con movimiento", (groups.companies || []).length]
+      ]
+      : [
+        ["Decisiones criticas", (groups.criticalDecisions || []).length],
+        ["Riesgos", (groups.risks || []).length],
+        ["Oportunidades", (groups.opportunities || []).length],
+        ["Seguimientos", (groups.pendingFollowups || []).length],
+        ["Empresas con movimiento", (groups.companies || []).length]
+      ];
+    rows.forEach(([label, value]) => {
       const card = makeElement("article", "brief-card");
       card.appendChild(makeElement("h3", null, label));
       card.appendChild(makeElement("p", null, String(value)));
@@ -1680,6 +1704,7 @@
   function renderExecutiveItem(item) {
     const card = makeElement("article", "row-card executive-card");
     card.dataset.level = item.nivel;
+    card.dataset.kind = item.kind;
     const header = makeElement("div", "row-header compact-header");
     header.appendChild(makeElement("span", `level-chip level-${item.nivel.toLowerCase()}`, item.nivel));
     header.appendChild(makeElement("span", "state-chip", item.status || "Pendiente"));
@@ -1689,6 +1714,11 @@
     card.appendChild(makeElement("p", "muted", `${item.proyecto} | ${item.origen}`));
     card.appendChild(makeElement("p", "muted", `Motivo: ${item.motivo}`));
     card.appendChild(makeElement("p", "muted", `Accion sugerida: ${item.accionSugerida}`));
+    if (item.kind === "caso" || item.origen === "Caso consolidado") {
+      const raw = item.raw || {};
+      card.appendChild(makeElement("p", "muted", `Evidencias: ${(raw.evidence || []).slice(0, 3).join(" | ") || "Contexto consolidado"}`));
+      card.appendChild(makeElement("p", "muted", `Decisiones: ${(raw.decisiones || []).length} | Seguimientos: ${(raw.seguimientos || []).length}`));
+    }
     card.appendChild(makeElement("p", "muted", `Fecha/hora: ${formatExecutiveDate(item.fechaHora)}`));
 
     const actions = makeElement("div", "button-row executive-card-actions");
@@ -1709,12 +1739,15 @@
     renderExecutiveSnapshot(center);
     renderExecutiveKpis(center);
 
-    const sections = [
-      ["Decisiones criticas", groups.criticalDecisions || []],
-      ["Riesgos", groups.risks || []],
-      ["Oportunidades", groups.opportunities || []],
-      ["Seguimientos pendientes", groups.pendingFollowups || []]
-    ];
+    const hasCases = Boolean(groups.cases && groups.cases.length);
+    const sections = hasCases
+      ? [["Casos importantes", groups.cases || []]]
+      : [
+        ["Decisiones criticas", groups.criticalDecisions || []],
+        ["Riesgos", groups.risks || []],
+        ["Oportunidades", groups.opportunities || []],
+        ["Seguimientos pendientes", groups.pendingFollowups || []]
+      ];
 
     sections.forEach(([title, items]) => {
       const sectionCard = makeElement("article", "row-card");
@@ -1722,7 +1755,7 @@
       if (!items.length) {
         sectionCard.appendChild(makeElement("p", "status-note", "Sin temas relevantes."));
       }
-      items.slice(0, 6).forEach((item) => sectionCard.appendChild(renderExecutiveItem(item)));
+      items.slice(0, hasCases ? 3 : 6).forEach((item) => sectionCard.appendChild(renderExecutiveItem(item)));
       executiveDecisionCenterList.appendChild(sectionCard);
     });
 
@@ -2480,6 +2513,9 @@
 
     localStorage.removeItem(pipelineKey);
     localStorage.removeItem("gos:lifeLoop");
+    if (window.GOSCognitiveConsolidationEngine) {
+      window.GOSCognitiveConsolidationEngine.reset();
+    }
 
     if (isOperationalNoise({ source: validSources.manual, text: localStorage.getItem(missionKey) || "" })) {
       localStorage.removeItem(missionKey);

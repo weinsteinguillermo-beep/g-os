@@ -32,7 +32,11 @@
       item.recommendation,
       item.lastActivity,
       item.entity,
-      item.text
+      item.text,
+      item.titulo,
+      item.empresa,
+      item.tipo,
+      item.lastMovement
     ].filter(Boolean).join(" ").toLowerCase();
   }
 
@@ -122,6 +126,7 @@
   function sourceWeight(item) {
     const source = item.source || item;
     const sourceName = typeof source === "string" ? source : (source.source || source.origin || source.origen || "");
+    if (sourceName === "case") return 22;
     if (sourceName === "outlook_desktop") return 18;
     if (sourceName === "outlook_graph" || sourceName === "outlook") return 14;
     if (sourceName === "live_input") return 3;
@@ -193,24 +198,49 @@
     };
   }
 
+  function normalizeCaseCandidate(caso) {
+    return {
+      id: caso.id,
+      type: "caso",
+      project: (caso.proyectos && caso.proyectos[0]) || caso.empresa || caso.titulo || "General",
+      title: caso.titulo || "Caso sin titulo",
+      description: [
+        caso.tipo,
+        caso.lastMovement,
+        (caso.riesgos || [])[0],
+        (caso.oportunidades || [])[0]
+      ].filter(Boolean).join(". "),
+      priority: caso.level || caso.prioridad || "Media",
+      state: caso.estado || "Activo",
+      timestamp: caso.ultimaActualizacion,
+      source: {
+        ...caso,
+        source: "case"
+      }
+    };
+  }
+
   function buildExecutiveAgenda(input) {
     const observations = input.observaciones || input.observations || [];
     const followups = input.seguimientos || input.followups || [];
+    const cases = input.casos || input.cases || [];
     const contextGraph = input.contextGraph;
-    const candidates = [
-      ...(input.decisiones || input.decisions || []).map((item) => normalizeDecisionCandidate(item, "decision")),
-      ...observations.map((item) => normalizeDecisionCandidate(item, "observacion")),
-      ...followups
-        .filter((item) => item.estado !== "Realizado" && item.estado !== "Archivado")
-        .map((item) => normalizeDecisionCandidate({
-          ...item,
-          title: item.personaEmpresa,
-          description: item.motivo,
-          entity: item.proyectoRelacionado,
-          priority: item.prioridad || item.priority || "MEDIUM",
-          state: item.estado || "Pendiente"
-        }, "seguimiento"))
-    ];
+    const candidates = cases.length
+      ? cases.map(normalizeCaseCandidate)
+      : [
+        ...(input.decisiones || input.decisions || []).map((item) => normalizeDecisionCandidate(item, "decision")),
+        ...observations.map((item) => normalizeDecisionCandidate(item, "observacion")),
+        ...followups
+          .filter((item) => item.estado !== "Realizado" && item.estado !== "Archivado")
+          .map((item) => normalizeDecisionCandidate({
+            ...item,
+            title: item.personaEmpresa,
+            description: item.motivo,
+            entity: item.proyectoRelacionado,
+            priority: item.prioridad || item.priority || "MEDIUM",
+            state: item.estado || "Pendiente"
+          }, "seguimiento"))
+      ];
 
     return candidates
       .filter((item) => item.state !== "Archivada")

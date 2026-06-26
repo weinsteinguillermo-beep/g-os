@@ -134,12 +134,17 @@ button {
 }
 
 .pipeline-panel {
+  display: none;
   margin: 0 0 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px;
   background: var(--surface);
   box-shadow: var(--shadow);
+}
+
+body[data-dev-mode="true"] .pipeline-panel {
+  display: block;
 }
 
 .pipeline-panel h2 {

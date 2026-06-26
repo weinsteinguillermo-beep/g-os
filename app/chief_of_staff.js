@@ -178,6 +178,12 @@
     return `Recomiendo atender primero: ${first.title}. ${first.recommendedAction}`;
   }
 
+  function buildRecommendationFromCases(cases) {
+    const first = cases && cases[0];
+    if (!first) return null;
+    return `Recomiendo resolver primero el caso ${first.titulo}: ${first.recommendation}`;
+  }
+
   function observationScore(observation) {
     return scoreItem({
       context: observation.title,
@@ -202,14 +208,17 @@
     const decisions = input.decisiones || input.decisions || [];
     const aprendizajes = input.aprendizajes || input.learnings || [];
     const observations = input.observaciones || input.observations || [];
+    const cases = input.casos || input.cases || [];
     const eventBus = window.GOSEventBus ? window.GOSEventBus.getState() : null;
     const contextGraph = input.contextGraph || null;
     const executiveAgenda = window.GOSDecisionEngine
       ? window.GOSDecisionEngine.buildExecutiveAgenda(input)
       : [];
 
+    const visibleCases = cases.slice(0, 3);
+
     const agendaDecisions = executiveAgenda
-      .filter((item) => item.type === "decision")
+      .filter((item) => item.type === "decision" || item.type === "caso")
       .slice(0, 3)
       .map((item) => ({
         ...item.source,
@@ -220,7 +229,15 @@
         recommendedAction: item.recommendedAction
       }));
 
-    const visibleDecisions = agendaDecisions.length ? agendaDecisions : rankWithContext(
+    const visibleDecisions = visibleCases.length ? visibleCases.map((caso) => ({
+      id: caso.id,
+      context: `${caso.titulo}: ${caso.lastMovement || caso.tipo}`,
+      priority: caso.prioridad,
+      recommendation: caso.recommendation,
+      state: caso.estado,
+      decisionScore: caso.score,
+      level: caso.level
+    })) : agendaDecisions.length ? agendaDecisions : rankWithContext(
       decisions.filter((decision) => decision.state !== "Archivada"),
       contextGraph
     ).slice(0, 3);
@@ -230,17 +247,22 @@
       .map((observation) => ({ ...observation, chiefScore: observationScore(observation) }))
       .sort((a, b) => b.chiefScore - a.chiefScore)
       .slice(0, 3);
-    const riskSource = rankWithContext([...visibleDecisions, ...visibleProjects, ...visibleObservations], contextGraph).slice(0, 2);
-    const risks = riskSource.map(buildRisk).slice(0, 2);
-    const opportunities = [buildOpportunity(ideas, projects)].filter(Boolean).slice(0, 1);
-    const recomendacion = buildRecommendationFromAgenda(executiveAgenda) || buildRecommendation(visibleDecisions, visibleProjects);
+    const riskSource = visibleCases.length ? visibleCases.filter((caso) => (caso.riesgos || []).length).slice(0, 2) : rankWithContext([...visibleDecisions, ...visibleProjects, ...visibleObservations], contextGraph).slice(0, 2);
+    const risks = visibleCases.length ? riskSource.flatMap((caso) => (caso.riesgos || []).slice(0, 1)).slice(0, 2) : riskSource.map(buildRisk).slice(0, 2);
+    const opportunities = visibleCases.length
+      ? visibleCases.flatMap((caso) => (caso.oportunidades || []).slice(0, 1)).slice(0, 1)
+      : [buildOpportunity(ideas, projects)].filter(Boolean).slice(0, 1);
+    const recomendacion = buildRecommendationFromCases(visibleCases) || buildRecommendationFromAgenda(executiveAgenda) || buildRecommendation(visibleDecisions, visibleProjects);
 
     return {
       fecha: formatDate(),
       saludo: "Buenos dias Guillermo.",
-      resumen: `Hoy encontre ${visibleDecisions.length} decisiones, ${risks.length} riesgos y ${opportunities.length} oportunidad.`,
+      resumen: visibleCases.length
+        ? `Hoy encontre ${visibleCases.length} casos importantes, ${risks.length} riesgos y ${opportunities.length} oportunidad.`
+        : `Hoy encontre ${visibleDecisions.length} decisiones, ${risks.length} riesgos y ${opportunities.length} oportunidad.`,
       decisionPrincipal: visibleDecisions[0] || null,
       decisiones: visibleDecisions,
+      casos: visibleCases,
       riesgos: risks,
       oportunidades: opportunities,
       proyectos: visibleProjects,

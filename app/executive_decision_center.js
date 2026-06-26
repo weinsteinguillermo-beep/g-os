@@ -53,6 +53,7 @@
   function sourceWeight(item) {
     const raw = item.raw || item;
     const source = item.origen || raw.source || raw.origin || raw.origen || "";
+    if (source === "case") return 5;
     if (source === "outlook_desktop") return 4;
     if (source === "outlook_graph" || source === "outlook") return 3;
     if (source === "live_input") return 1;
@@ -168,10 +169,42 @@
       .sort((a, b) => timeOf({ fechaHora: b.updatedAt || b.createdAt || b.timestamp }) - timeOf({ fechaHora: a.updatedAt || a.createdAt || a.timestamp }))[0] || null;
   }
 
+  function normalizeFromCase(caso) {
+    const sourceState = itemState(`case-${caso.id}`);
+    const riskCount = (caso.riesgos || []).length;
+    const opportunityCount = (caso.oportunidades || []).length;
+    return {
+      id: `case-${caso.id}`,
+      sourceId: caso.id,
+      kind: riskCount ? "riesgo" : opportunityCount ? "oportunidad" : "caso",
+      title: caso.titulo || "Caso sin titulo",
+      empresaPersona: caso.empresa || (caso.personas || [])[0] || "General",
+      empresa: caso.empresa || "General",
+      persona: (caso.personas || [])[0] || "",
+      proyecto: (caso.proyectos || [])[0] || caso.empresa || "General",
+      origen: "Caso consolidado",
+      nivel: caso.level || levelFromScore(caso.score || 0, levelFromPriority(caso.prioridad)),
+      motivo: [
+        caso.tipo,
+        `${(caso.evidence || []).length} evidencias`,
+        `${(caso.decisiones || []).length} decisiones`,
+        `${(caso.seguimientos || []).length} seguimientos`
+      ].filter(Boolean).join(" | "),
+      accionSugerida: caso.recommendation || "Definir proximo paso.",
+      fechaHora: caso.ultimaActualizacion || "",
+      status: sourceState.status || caso.estado || "Activo",
+      raw: {
+        ...caso,
+        source: "case"
+      }
+    };
+  }
+
   function build(input) {
     const observations = input.observaciones || input.observations || [];
     const decisions = input.decisiones || input.decisions || [];
     const followups = input.seguimientos || input.followups || [];
+    const cases = input.casos || input.cases || [];
     const agenda = input.agenda || [];
     const desktop = input.desktopObserver || {};
     const eventBus = window.GOSEventBus ? window.GOSEventBus.getState() : {};
@@ -181,15 +214,16 @@
       if (item.id) agendaBySource.set(item.id, item);
     });
 
-    const cognitiveItems = observations.map(normalizeFromObservation).filter(Boolean);
-    const decisionItems = decisions
+    const caseItems = cases.map(normalizeFromCase);
+    const cognitiveItems = cases.length ? [] : observations.map(normalizeFromObservation).filter(Boolean);
+    const decisionItems = cases.length ? [] : decisions
       .filter((decision) => decision.state !== ARCHIVED)
       .map((decision) => normalizeFromDecision(decision, agendaBySource.get(decision.id)));
-    const followupItems = followups
+    const followupItems = cases.length ? [] : followups
       .filter((followup) => followup.estado !== "Realizado" && followup.estado !== ARCHIVED)
       .map((followup) => normalizeFromFollowup(followup, agendaBySource.get(followup.id)));
 
-    const allItems = [...cognitiveItems, ...decisionItems, ...followupItems]
+    const allItems = [...caseItems, ...cognitiveItems, ...decisionItems, ...followupItems]
       .filter((item) => !isClosed(item.status))
       .sort((a, b) => {
         const levelWeight = { CRITICO: 4, ALTO: 3, MEDIO: 2, BAJO: 1 };
@@ -210,7 +244,9 @@
 
     return {
       summary: {
-        text: `Hoy detecte ${opportunities.length} oportunidades, ${risks.length} riesgos, ${pendingFollowups.length} seguimientos y ${criticalDecisions.length} decisiones importantes. ${top ? `Recomiendo empezar por ${top.empresaPersona}.` : "No hay foco ejecutivo urgente."}`,
+        text: cases.length
+          ? `Hoy hay ${allItems.length} casos activos. ${top ? `Recomiendo empezar por ${top.title}.` : "No hay foco ejecutivo urgente."}`
+          : `Hoy detecte ${opportunities.length} oportunidades, ${risks.length} riesgos, ${pendingFollowups.length} seguimientos y ${criticalDecisions.length} decisiones importantes. ${top ? `Recomiendo empezar por ${top.empresaPersona}.` : "No hay foco ejecutivo urgente."}`,
         top
       },
       last: {
@@ -225,6 +261,7 @@
         risks,
         opportunities,
         pendingFollowups,
+        cases: caseItems,
         companies,
         allItems
       }

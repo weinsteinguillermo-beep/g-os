@@ -89,8 +89,11 @@
     const followups = input.seguimientos || input.followups || [];
     const observations = input.observaciones || input.observations || [];
     const decisions = input.decisiones || input.decisions || [];
+    const cases = input.casos || input.cases || [];
     const learnings = input.aprendizajes || input.learnings || [];
-    const criticalCount = (agenda || []).filter((item) => item.level === "CRITICO").length;
+    const criticalCases = cases.filter((caso) => caso.level === "CRITICO").length;
+    const highCases = cases.filter((caso) => caso.level === "ALTO").length;
+    const criticalCount = criticalCases || (agenda || []).filter((item) => item.level === "CRITICO").length;
     const highEvents = recentHighObservations(observations).length;
     const pending = pendingDecisions(decisions).length;
     const overdue = overdueFollowups(followups).length;
@@ -99,28 +102,36 @@
     const learningPenalty = learnings.length ? 0 : 4;
     const briefingBonus = briefing && briefing.recomendacion ? 4 : 0;
 
-    const penalty = overdue * 18 + criticalCount * 16 + highEvents * 10 + due * 7 + pending * 5 + agendaPressure * 3 + learningPenalty;
+    const eventPenalty = cases.length ? Math.min(highEvents * 2, 8) : highEvents * 10;
+    const pendingPenalty = cases.length ? Math.min(pending * 2, 8) : pending * 5;
+    const penalty = overdue * 18 + criticalCount * 16 + highCases * 8 + eventPenalty + due * 7 + pendingPenalty + agendaPressure * 3 + learningPenalty;
     return Math.max(0, Math.min(100, 100 - penalty + briefingBonus));
   }
 
   function detectState(input, agenda) {
     const followups = input.seguimientos || input.followups || [];
     const observations = input.observaciones || input.observations || [];
+    const cases = input.casos || input.cases || [];
+    const criticalCase = cases.some((caso) => caso.level === "CRITICO");
+    const highCase = cases.some((caso) => caso.level === "ALTO");
     const critical = (agenda || []).some((item) => item.level === "CRITICO");
     const high = recentHighObservations(observations).length > 0;
     const overdue = overdueFollowups(followups).length > 0;
     const due = dueFollowups(followups).length > 0;
 
-    if (critical) return STATES.EMERGENCIA;
-    if (high || overdue) return STATES.ACCION;
-    if (due || observations.length > 0) return STATES.ATENCION;
+    if (criticalCase || critical) return STATES.EMERGENCIA;
+    if (highCase || high || overdue) return STATES.ACCION;
+    if (due || cases.length > 0 || observations.length > 0) return STATES.ATENCION;
     return STATES.REPOSO;
   }
 
   function summarizeFindings(input, agenda) {
     const followups = input.seguimientos || input.followups || [];
     const observations = input.observaciones || input.observations || [];
+    const cases = input.casos || input.cases || [];
     return {
+      casos: cases.length,
+      casosCriticos: cases.filter((caso) => caso.level === "CRITICO").length,
       observaciones: observations.length,
       eventosHigh: recentHighObservations(observations).length,
       seguimientosVencidos: overdueFollowups(followups).length,
@@ -145,6 +156,7 @@
   function buildChange(previous, currentTop, tranquility, input, agenda) {
     const followups = input.seguimientos || input.followups || [];
     const observations = input.observaciones || input.observations || [];
+    const cases = input.casos || input.cases || [];
     const previousFindings = previous.lastFindings || {};
     const currentFindings = summarizeFindings(input, agenda);
     const previousAgendaSignature = previous.lastAgendaSignature || "";
@@ -160,7 +172,7 @@
       tranquilidadNueva: tranquility,
       tranquilidadDelta: tranquilityDelta,
       nuevosSeguimientos: countChanged(dueFollowups(followups).length, previousFindings.seguimientosRelevantes),
-      nuevasObservaciones: countChanged(observations.length, previousFindings.observaciones),
+      nuevasObservaciones: countChanged(cases.length || observations.length, previousFindings.casos || previousFindings.observaciones),
       agendaCambio: Boolean(previousAgendaSignature && previousAgendaSignature !== currentAgendaSignature),
       agendaFirma: currentAgendaSignature
     };
@@ -223,12 +235,12 @@
         mensaje: stateInfo.message,
         tranquilidad: tranquility,
         tranquilidadTexto: label.text,
-        reviso: ["Observer Bus", "Context Engine", "Decision Engine", "Chief of Staff", "ADN Operativo"],
+        reviso: ["Observer Bus", "Consolidation Engine", "Decision Engine", "Chief of Staff", "ADN Operativo"],
         disparadoPor: triggerEvent ? triggerEvent.type : "Ciclo automatico",
         encontro: summarizeFindings(input, agenda),
         cambio: change,
         resumenEjecutivo: summary,
-        modifico: priorityChanged ? "Agenda Ejecutiva y Daily Briefing" : observed.length ? "Observaciones locales" : "Sin cambios relevantes",
+        modifico: priorityChanged ? "Caso principal, Agenda Ejecutiva y Daily Briefing" : observed.length ? "Casos afectados" : "Sin cambios relevantes",
         duracionMs: duration,
         prioridadCambio: priorityChanged
       };
