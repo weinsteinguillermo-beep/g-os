@@ -1,6 +1,6 @@
 (function () {
   function initialize() {
-    return { source: "gmail", status: "simulated" };
+    return { source: "system", status: "simulated" };
   }
 
   function checkUpdates() {
@@ -17,14 +17,14 @@
   function normalize(update) {
     return {
       id: "gmail-sim-mercado-forestal",
-      source: "gmail",
+      source: "system",
       type: "email",
       entity: update.entity,
       title: update.subject,
       description: update.body,
       priority: update.priority,
       timestamp: new Date().toISOString(),
-      metadata: { simulated: true }
+      metadata: { simulated: true, originalSource: "gmail" }
     };
   }
 
@@ -34,4 +34,3 @@
 
   window.GOSGmailConnector = { initialize, checkUpdates, normalize, emitObservation };
 })();
-

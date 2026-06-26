@@ -84,7 +84,9 @@
       relations: Math.min(relations * 2, 10),
       observations: Math.min(recentObservations * 3, 9),
       manualPriority: followup.high ? 10 : (PRIORITY_POINTS[item.priority] || 2),
-      state: STATE_POINTS[item.state] || STATE_POINTS[item.status] || 4
+      state: STATE_POINTS[item.state] || STATE_POINTS[item.status] || 4,
+      source: sourceWeight(item),
+      recency: recencyWeight(item)
     };
   }
 
@@ -115,6 +117,27 @@
     const value = source.timestamp || source.updatedAt || source.createdAtIso || item.timestamp || "";
     const time = Date.parse(value);
     return Number.isNaN(time) ? 0 : time;
+  }
+
+  function sourceWeight(item) {
+    const source = item.source || item;
+    const sourceName = typeof source === "string" ? source : (source.source || source.origin || source.origen || "");
+    if (sourceName === "outlook_desktop") return 18;
+    if (sourceName === "outlook_graph" || sourceName === "outlook") return 14;
+    if (sourceName === "live_input") return 3;
+    if (sourceName === "demo" || source.demo || source.demoId) return -30;
+    if (sourceName === "manual" || sourceName === "ADN") return -8;
+    if (sourceName === "system") return -6;
+    return 0;
+  }
+
+  function recencyWeight(item) {
+    const time = timestampValue(item);
+    if (!time) return 0;
+    const ageHours = (Date.now() - time) / (60 * 60 * 1000);
+    if (ageHours <= 24) return 12;
+    if (ageHours <= 72) return 6;
+    return 0;
   }
 
   function classify(score) {

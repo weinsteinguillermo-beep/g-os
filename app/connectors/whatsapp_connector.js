@@ -1,6 +1,6 @@
 (function () {
   function initialize() {
-    return { source: "whatsapp", status: "simulated" };
+    return { source: "system", status: "simulated" };
   }
 
   function checkUpdates() {
@@ -17,14 +17,14 @@
   function normalize(update) {
     return {
       id: "whatsapp-sim-uruforest",
-      source: "whatsapp",
+      source: "system",
       type: "message",
       entity: update.entity,
       title: update.chat,
       description: update.message,
       priority: update.priority,
       timestamp: new Date().toISOString(),
-      metadata: { simulated: true }
+      metadata: { simulated: true, originalSource: "whatsapp" }
     };
   }
 
@@ -34,4 +34,3 @@
 
   window.GOSWhatsAppConnector = { initialize, checkUpdates, normalize, emitObservation };
 })();
-

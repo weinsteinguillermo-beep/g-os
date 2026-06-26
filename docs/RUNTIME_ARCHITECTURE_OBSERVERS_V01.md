@@ -55,6 +55,44 @@ El observer real sigue escribiendo localmente:
 
 Ambos archivos quedan en la PC de Guillermo y G-OS puede seguir leyendolos, pero Git los ignora.
 
+## GitHub Pages y datos locales
+
+GitHub Pages solo puede servir archivos publicados. No puede leer archivos runtime privados de la PC de Guillermo.
+
+Si G-OS se abre desde GitHub Pages y no existe un puente local activo, el pipeline debe mostrar:
+
+`Cola local no disponible desde GitHub Pages. Ejecutar G-OS en modo local o iniciar puente local.`
+
+Esto no es un error del sistema. Es una frontera de seguridad del navegador.
+
+## G-OS Local Bridge
+
+Para conectar la interfaz publica con datos locales reales, G-OS prepara un puente local de solo lectura:
+
+`http://localhost:17829/outlook/queue`
+
+El puente lee la cola local de Outlook Desktop y la entrega a la web con CORS habilitado.
+
+Archivos:
+
+- `desktop_observers/gos_local_bridge.ps1`
+- `desktop_observers/START_GOS_LOCAL_BRIDGE.cmd`
+
+El dashboard intenta leer primero el Local Bridge. Si no esta disponible, y G-OS no esta en GitHub Pages, intenta leer el archivo local publicado en `app/desktop_observer`.
+
+## Fuentes separadas
+
+Toda observacion debe conservar su fuente:
+
+- `outlook_desktop`
+- `outlook_graph`
+- `live_input`
+- `demo`
+- `manual`
+- `system`
+
+Los rankings ejecutivos deben favorecer eventos recientes reales de `outlook_desktop` por encima de datos historicos, demo o manuales.
+
 ## Principio
 
 El codigo viaja.

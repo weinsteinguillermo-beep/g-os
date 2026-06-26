@@ -1,6 +1,6 @@
 (function () {
   function initialize() {
-    return { source: "drive", status: "simulated" };
+    return { source: "system", status: "simulated" };
   }
 
   function checkUpdates() {
@@ -17,14 +17,14 @@
   function normalize(update) {
     return {
       id: "drive-sim-mantenimiento-mental",
-      source: "drive",
+      source: "system",
       type: "document",
       entity: update.entity,
       title: update.file,
       description: update.summary,
       priority: update.priority,
       timestamp: new Date().toISOString(),
-      metadata: { simulated: true }
+      metadata: { simulated: true, originalSource: "drive" }
     };
   }
 
@@ -34,4 +34,3 @@
 
   window.GOSDriveConnector = { initialize, checkUpdates, normalize, emitObservation };
 })();
-

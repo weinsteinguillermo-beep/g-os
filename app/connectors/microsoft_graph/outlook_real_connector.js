@@ -125,7 +125,7 @@
 
     return {
       id: `outlook-real-${email.id}`,
-      source: "outlook",
+      source: "outlook_graph",
       type: "email",
       entity: relatedProject,
       title: email.subject || "(sin asunto)",
@@ -151,7 +151,7 @@
   }
 
   function initialize() {
-    return { source: "outlook", status: "real", mode: "read-only" };
+    return { source: "outlook_graph", status: "real", mode: "read-only" };
   }
 
   function checkUpdates() {

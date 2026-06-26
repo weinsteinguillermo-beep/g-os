@@ -81,6 +81,15 @@
   const desktopObserverKey = "gos:outlookDesktopObserver";
   const desktopProcessedKey = "gos:outlookDesktopObserver:processed";
   const pipelineKey = "gos:pipelineStatus";
+  const localBridgeUrl = "http://localhost:17829/outlook/queue";
+  const validSources = {
+    liveInput: "live_input",
+    demo: "demo",
+    outlookDesktop: "outlook_desktop",
+    outlookGraph: "outlook_graph",
+    manual: "manual",
+    system: "system"
+  };
   let desktopObserverTimer = null;
   let lastDnaAnswer = null;
   const observerBus = window.GOSObserverBus.create([
@@ -131,6 +140,44 @@
 
   function isDemo(item) {
     return item && (item.demo === true || item.demoId === demoFlag || (item.metadata && item.metadata.demoId === demoFlag));
+  }
+
+  function isGitHubPages() {
+    return window.location.hostname.endsWith("github.io");
+  }
+
+  function isRealOutlookSource(source) {
+    return source === validSources.outlookDesktop || source === validSources.outlookGraph || source === "outlook";
+  }
+
+  function itemSource(item) {
+    if (!item) return validSources.manual;
+    if (item.source) return item.source;
+    if (item.origin === "Cognitive Mail Engine" || item.origen === "Cognitive Mail Engine") return validSources.outlookDesktop;
+    if (item.origin === "ADN" || item.origen === "ADN") return validSources.manual;
+    if (item.demo || item.demoId) return validSources.demo;
+    return validSources.manual;
+  }
+
+  function hasRealOutlookSource(item) {
+    const source = itemSource(item);
+    return isRealOutlookSource(source);
+  }
+
+  function isOperationalNoise(item) {
+    const source = itemSource(item);
+    const text = JSON.stringify(item || {}).toLowerCase();
+    return (
+      isDemo(item) ||
+      (item.metadata && item.metadata.simulated === true) ||
+      source === validSources.demo ||
+      source === validSources.liveInput ||
+      source === validSources.manual ||
+      (source === validSources.system && item.metadata && item.metadata.simulated === true) ||
+      text.includes("correo de ponsse brasil") ||
+      text.includes("demo-gos-v01") ||
+      text.includes("debug pipeline")
+    );
   }
 
   function makeElement(tag, className, text) {
@@ -798,6 +845,46 @@
     getDesktopProcessedIds().forEach((id) => window.GOSEventBus.markProcessed(id));
   }
 
+  async function fetchJsonWithTimeout(url, timeoutMs) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs || 1500);
+    try {
+      const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+
+  async function readOutlookQueue() {
+    try {
+      const queue = await fetchJsonWithTimeout(`${localBridgeUrl}?ts=${Date.now()}`, 1200);
+      markStageOk("Queue", { message: "Cola leida desde Local Bridge" });
+      return { queue, mode: "bridge" };
+    } catch (bridgeError) {
+      if (isGitHubPages()) {
+        const message = "Cola local no disponible desde GitHub Pages. Ejecutar G-OS en modo local o iniciar puente local.";
+        const queue = {
+          status: "Esperando",
+          lastReview: timestamp(),
+          lastEmail: null,
+          processedCount: (window.GOSEventBus.getState().processedIds || []).length,
+          intervalSeconds: Number(desktopObserverInterval.value) || 30,
+          observations: [],
+          bridgeUnavailable: true,
+          bridgeError: bridgeError.message
+        };
+        markStageOk("Queue", { message });
+        return { queue, mode: "github-pages-no-bridge", message };
+      }
+
+      const queue = await fetchJsonWithTimeout(`./desktop_observer/outlook_desktop_queue.json?ts=${Date.now()}`, 1500);
+      markStageOk("Queue", { message: `Cola local leida. Nuevos: ${queue.newObservationCount || 0}` });
+      return { queue, mode: "local-file" };
+    }
+  }
+
   function renderDesktopObserver(state, imported) {
     const current = state || getDesktopObserverState();
     desktopObserverStatus.textContent = current.status || (current.active ? "Activo" : "Esperando");
@@ -823,12 +910,17 @@
     let latestMailLabel = "";
 
     try {
-      const response = await fetch(`./desktop_observer/outlook_desktop_queue.json?ts=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Cola local no disponible.");
-      queue = await response.json();
-      markStageOk("Queue", {
-        message: `Cola leida. Nuevos: ${queue.newObservationCount || 0}`
-      });
+      const queueResult = await readOutlookQueue();
+      queue = queueResult.queue;
+      if (queueResult.message) {
+        savePipelineStatus({
+          status: "Esperando",
+          lastEvent: "LOCAL_BRIDGE_UNAVAILABLE",
+          lastModule: "Queue",
+          pendingCount: 0
+        });
+        desktopObserverNote.textContent = queueResult.message;
+      }
     } catch (error) {
       const state = {
         ...getDesktopObserverState(),
@@ -869,6 +961,19 @@
     };
     saveDesktopObserverState(state);
     renderDesktopObserver(state, silent ? undefined : newObservations.length);
+
+    if (queue.bridgeUnavailable) {
+      savePipelineStatus({
+        status: "Esperando",
+        lastEvent: "LOCAL_BRIDGE_UNAVAILABLE",
+        lastModule: "Queue",
+        lastMail: getPipelineStatus().lastMail,
+        processedCount: known.size,
+        pendingCount: 0
+      });
+      desktopObserverNote.textContent = "Cola local no disponible desde GitHub Pages. Ejecutar G-OS en modo local o iniciar puente local.";
+      return;
+    }
 
     if (queue.error) {
       const error = new Error(queue.error);
@@ -2260,6 +2365,71 @@
     window.GOSKnowledgeRegistry.write(registry);
   }
 
+  function clearOperationalMemory() {
+    const confirmed = window.confirm([
+      "Limpiar memoria operativa de pruebas?",
+      "",
+      "Se eliminaran eventos manuales/demo/live input, decisiones generadas de prueba, prioridades historicas falsas y estado viejo del pipeline.",
+      "No se borrara la configuracion ni el ADN real."
+    ].join("\n"));
+
+    if (!confirmed) {
+      setDataStatus("Limpieza cancelada.");
+      return;
+    }
+
+    const preservedEvents = window.GOSEventLog.read().filter((event) => hasRealOutlookSource(event));
+    window.GOSEventLog.clear();
+    preservedEvents.forEach((event) => window.GOSEventLog.append(event));
+
+    saveJson(createdDecisionKey, loadJson(createdDecisionKey, []).filter((decision) => {
+      return hasRealOutlookSource(decision) || (decision.sourceObservationId && String(decision.sourceObservationId).includes("outlook"));
+    }));
+
+    saveFollowups(getFollowups().filter((followup) => {
+      return hasRealOutlookSource(followup) || (followup.sourceObservationId && String(followup.sourceObservationId).includes("outlook"));
+    }));
+
+    const decisionState = loadJson(decisionKey, {});
+    Object.keys(decisionState).forEach((id) => {
+      if (isOperationalNoise(decisionState[id]) || String(id).includes("demo") || String(id).includes("mail-decision-demo")) {
+        delete decisionState[id];
+      }
+    });
+    saveJson(decisionKey, decisionState);
+
+    const executiveState = window.GOSExecutiveDecisionCenter.readState();
+    executiveState.items = Object.fromEntries(Object.entries(executiveState.items || {}).filter(([id, item]) => {
+      return hasRealOutlookSource(item) || String(id).includes("outlook");
+    }));
+    saveJson(window.GOSExecutiveDecisionCenter.stateKey, executiveState);
+
+    const desktopIds = getDesktopProcessedIds();
+    saveJson(window.GOSEventBus.stateKey, {
+      events: [],
+      processedIds: desktopIds,
+      stages: {},
+      errors: [],
+      lastProcessedAt: timestamp()
+    });
+
+    localStorage.removeItem(pipelineKey);
+    localStorage.removeItem("gos:lifeLoop");
+
+    if (isOperationalNoise({ source: validSources.manual, text: localStorage.getItem(missionKey) || "" })) {
+      localStorage.removeItem(missionKey);
+    }
+    if ((localStorage.getItem(learningKey) || "").toLowerCase().includes("demo")) {
+      localStorage.removeItem(learningKey);
+    }
+
+    clearDemo({ silent: true });
+    markStageOk("Queue", { message: "Memoria operativa limpia. Esperando Outlook real o Local Bridge." });
+    runDayRoutine("clear_operational_memory");
+    renderAll();
+    setDataStatus(`Memoria operativa limpia. Se conservaron ${preservedEvents.length} eventos reales de Outlook.`);
+  }
+
   function importData(file) {
     const reader = new FileReader();
     reader.addEventListener("load", () => {
@@ -2424,6 +2594,7 @@
   beatNow.addEventListener("click", beatNowAction);
   document.getElementById("loadDemo").addEventListener("click", loadDemo);
   document.getElementById("clearDemo").addEventListener("click", () => clearDemo());
+  document.getElementById("clearOperationalMemory").addEventListener("click", clearOperationalMemory);
   document.getElementById("newMission").addEventListener("click", () => {
     const prompt = buildMissionPrompt();
     localStorage.setItem(missionKey, prompt);

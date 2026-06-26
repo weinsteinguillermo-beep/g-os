@@ -50,6 +50,27 @@
     return Number.isNaN(time) ? 0 : time;
   }
 
+  function sourceWeight(item) {
+    const raw = item.raw || item;
+    const source = item.origen || raw.source || raw.origin || raw.origen || "";
+    if (source === "outlook_desktop") return 4;
+    if (source === "outlook_graph" || source === "outlook") return 3;
+    if (source === "live_input") return 1;
+    if (source === "demo" || raw.demo || raw.demoId) return -5;
+    if (source === "manual" || source === "ADN") return -2;
+    if (source === "system") return -1;
+    return 0;
+  }
+
+  function recencyWeight(item) {
+    const time = timeOf(item);
+    if (!time) return 0;
+    const ageHours = (Date.now() - time) / (60 * 60 * 1000);
+    if (ageHours <= 24) return 3;
+    if (ageHours <= 72) return 1;
+    return 0;
+  }
+
   function levelFromPriority(priority) {
     if (priority === "HIGH" || priority === "Alta") return "ALTO";
     if (priority === "MEDIUM" || priority === "Media") return "MEDIO";
@@ -172,7 +193,9 @@
       .filter((item) => !isClosed(item.status))
       .sort((a, b) => {
         const levelWeight = { CRITICO: 4, ALTO: 3, MEDIO: 2, BAJO: 1 };
-        const diff = (levelWeight[b.nivel] || 0) - (levelWeight[a.nivel] || 0);
+        const scoreA = (levelWeight[a.nivel] || 0) + sourceWeight(a) + recencyWeight(a);
+        const scoreB = (levelWeight[b.nivel] || 0) + sourceWeight(b) + recencyWeight(b);
+        const diff = scoreB - scoreA;
         return diff || timeOf(b) - timeOf(a);
       });
 

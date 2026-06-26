@@ -1,6 +1,6 @@
 (function () {
   function initialize() {
-    return { source: "airtable", status: "simulated" };
+    return { source: "system", status: "simulated" };
   }
 
   function checkUpdates() {
@@ -17,14 +17,14 @@
   function normalize(update) {
     return {
       id: "airtable-sim-outdoor",
-      source: "airtable",
+      source: "system",
       type: "record",
       entity: update.entity,
       title: update.record,
       description: update.change,
       priority: update.priority,
       timestamp: new Date().toISOString(),
-      metadata: { simulated: true }
+      metadata: { simulated: true, originalSource: "airtable" }
     };
   }
 
@@ -34,4 +34,3 @@
 
   window.GOSAirtableConnector = { initialize, checkUpdates, normalize, emitObservation };
 })();
-
