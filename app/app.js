@@ -9,6 +9,14 @@
   const demoFlag = "demo-gos-v01";
 
   const todayLabel = document.getElementById("todayLabel");
+  const executiveWelcome = document.getElementById("executiveWelcome");
+  const welcomeEvents = document.getElementById("welcomeEvents");
+  const welcomeCases = document.getElementById("welcomeCases");
+  const welcomeFeeling = document.getElementById("welcomeFeeling");
+  const welcomeReasons = document.getElementById("welcomeReasons");
+  const welcomeFocus = document.getElementById("welcomeFocus");
+  const welcomeTime = document.getElementById("welcomeTime");
+  const startDay = document.getElementById("startDay");
   const dailyRecommendation = document.getElementById("dailyRecommendation");
   const dailyQuestion = document.getElementById("dailyQuestion");
   const briefingGrid = document.getElementById("briefingGrid");
@@ -71,6 +79,10 @@
   const executiveSnapshot = document.getElementById("executiveSnapshot");
   const executiveKpis = document.getElementById("executiveKpis");
   const executiveDecisionCenterList = document.getElementById("executiveDecisionCenterList");
+  const companiesGrid = document.getElementById("companiesGrid");
+  const peopleGrid = document.getElementById("peopleGrid");
+  const memoryJournal = document.getElementById("memoryJournal");
+  const systemGrid = document.getElementById("systemGrid");
   const desktopObserverStatus = document.getElementById("desktopObserverStatus");
   const desktopObserverLastReview = document.getElementById("desktopObserverLastReview");
   const desktopObserverLastEmail = document.getElementById("desktopObserverLastEmail");
@@ -343,6 +355,61 @@
   function updateSystemStatus(clockState) {
     const state = clockState || window.GOSSystemClock.read();
     lastSyncLabel.textContent = window.GOSSystemClock.formatSync(state.lastSync);
+  }
+
+  function minutesSince(iso) {
+    const time = Date.parse(iso || "");
+    if (Number.isNaN(time)) return "Sin fecha";
+    const diff = Math.max(0, Math.round((Date.now() - time) / 60000));
+    if (diff < 2) return "Ahora";
+    if (diff < 60) return `Hace ${diff} minutos`;
+    const hours = Math.round(diff / 60);
+    if (hours < 24) return `Hace ${hours} horas`;
+    return `Hace ${Math.round(hours / 24)} dias`;
+  }
+
+  function tranquilityReasons(loopState, cases) {
+    const tranquility = loopState.tranquility !== undefined ? loopState.tranquility : 100;
+    const importantCases = (cases || []).filter((caso) => caso.level === "CRITICO" || caso.level === "ALTO");
+    const openFollowups = getRelevantFollowups().length;
+    const reasons = [];
+
+    if (tranquility >= 80) reasons.push("No hay situaciones criticas acumuladas.");
+    if (importantCases.length) reasons.push(`Hay ${importantCases.length} casos que merecen atencion.`);
+    if (openFollowups) reasons.push(`Hay ${openFollowups} seguimientos abiertos.`);
+    if ((cases || []).some((caso) => (caso.riesgos || []).length)) reasons.push("Existe al menos un riesgo identificado y contenido.");
+    if (!reasons.length) reasons.push("El contexto esta ordenado y no hay urgencias visibles.");
+    return reasons.slice(0, 4);
+  }
+
+  function renderExecutiveWelcome() {
+    const input = getEngineInput();
+    const cases = (input.casos || []).slice(0, 3);
+    const loopState = window.GOSLifeLoopEngine.getState();
+    const eventCount = (input.observaciones || []).length + (input.seguimientos || []).length + (input.decisiones || []).length;
+    const tranquility = loopState.tranquility !== undefined ? loopState.tranquility : 100;
+    const topCase = cases[0];
+    const feeling = tranquility >= 80
+      ? "🟢 Tranquilo"
+      : tranquility >= 50
+        ? "🟠 Atento"
+        : "🔴 Requiere foco";
+
+    welcomeEvents.textContent = `${eventCount} acontecimientos`;
+    welcomeCases.textContent = `SOLO ${cases.length || 0} Casos importantes.`;
+    welcomeFeeling.textContent = feeling;
+    welcomeFocus.textContent = topCase ? `🎯 Caso ${topCase.titulo}` : "🎯 Mantener el dia simple";
+    welcomeTime.textContent = topCase && topCase.level === "CRITICO" ? "20 minutos" : "15 minutos";
+    welcomeReasons.innerHTML = "";
+    tranquilityReasons(loopState, cases).forEach((reason) => {
+      welcomeReasons.appendChild(makeElement("li", null, reason));
+    });
+  }
+
+  function startExecutiveDay() {
+    document.body.dataset.dayStarted = "true";
+    executiveWelcome.hidden = true;
+    activatePanel("executiveCenter");
   }
 
   function updateHeartStatus(loopState) {
@@ -1705,6 +1772,45 @@
     const card = makeElement("article", "row-card executive-card");
     card.dataset.level = item.nivel;
     card.dataset.kind = item.kind;
+    const isCase = item.kind === "caso" || item.origen === "Caso consolidado";
+
+    if (isCase) {
+      const raw = item.raw || {};
+      card.classList.add("case-card");
+      card.appendChild(makeElement("p", "section-label", "Caso"));
+      card.appendChild(makeElement("h3", null, item.title));
+      card.appendChild(makeElement("p", null, raw.lastMovement || item.motivo || "Situacion consolidada."));
+      card.appendChild(makeElement("p", "muted", `Ultima actividad: ${minutesSince(item.fechaHora)}`));
+      card.appendChild(makeElement("p", "muted", `Estado: ${item.nivel === "CRITICO" ? "🔴 Requiere foco" : item.nivel === "ALTO" ? "🟠 Requiere atencion" : "🟢 En seguimiento"}.`));
+      card.appendChild(makeElement("p", "muted", `Mi recomendacion: ${item.accionSugerida}`));
+
+      const details = makeElement("div", "case-details");
+      details.hidden = true;
+      [
+        ["Timeline", (raw.timeline || []).slice(-5).map((entry) => `${minutesSince(entry.fecha)}: ${entry.titulo}`)],
+        ["Correos relacionados", (raw.origenes || []).filter((origin) => String(origin).includes("outlook")).length ? raw.evidence || [] : []],
+        ["Decisiones", [`${(raw.decisiones || []).length} decisiones vinculadas.`]],
+        ["Seguimientos", [`${(raw.seguimientos || []).length} seguimientos vinculados.`]],
+        ["Aprendizajes", raw.aprendizajes || []],
+        ["Empresas", [raw.empresa].filter(Boolean)],
+        ["Personas", raw.personas || []],
+        ["Documentos", raw.documentos || []]
+      ].forEach(([label, values]) => {
+        details.appendChild(makeElement("p", "section-label", label));
+        const list = makeElement("ul");
+        const visible = (values || []).filter(Boolean);
+        if (!visible.length) list.appendChild(makeElement("li", null, "Sin contexto especifico todavia."));
+        visible.slice(0, 5).forEach((value) => list.appendChild(makeElement("li", null, value)));
+        details.appendChild(list);
+      });
+
+      card.appendChild(makeAction("Ver detalles", "secondary-button compact", () => {
+        details.hidden = !details.hidden;
+      }));
+      card.appendChild(details);
+      return card;
+    }
+
     const header = makeElement("div", "row-header compact-header");
     header.appendChild(makeElement("span", `level-chip level-${item.nivel.toLowerCase()}`, item.nivel));
     header.appendChild(makeElement("span", "state-chip", item.status || "Pendiente"));
@@ -1738,8 +1844,10 @@
     executiveDecisionCenterList.innerHTML = "";
     renderExecutiveSnapshot(center);
     renderExecutiveKpis(center);
-
     const hasCases = Boolean(groups.cases && groups.cases.length);
+    executiveSnapshot.hidden = hasCases;
+    executiveKpis.hidden = hasCases;
+
     const sections = hasCases
       ? [["Casos importantes", groups.cases || []]]
       : [
@@ -1759,11 +1867,13 @@
       executiveDecisionCenterList.appendChild(sectionCard);
     });
 
-    const companyCard = makeElement("article", "row-card");
-    companyCard.appendChild(makeElement("p", "section-label", "Empresas con movimiento"));
-    const companies = groups.companies || [];
+    if (!hasCases) {
+      const companyCard = makeElement("article", "row-card");
+      companyCard.appendChild(makeElement("p", "section-label", "Empresas con movimiento"));
+      const companies = groups.companies || [];
     companyCard.appendChild(makeElement("p", null, companies.length ? companies.join(" · ") : "Sin empresas con movimiento."));
-    executiveDecisionCenterList.appendChild(companyCard);
+      executiveDecisionCenterList.appendChild(companyCard);
+    }
   }
 
   function findBriefingItems(title) {
@@ -1867,6 +1977,117 @@
     dnaGrid.appendChild(renderSimpleDnaCard("Aprendizajes", snapshot.aprendizajes.map((item) => item.queAprendimos || item.nombre)));
     dnaGrid.appendChild(renderSimpleDnaCard("Seguimientos", loadJson(followupKey, []).map((item) => `${item.personaEmpresa}: ${item.fechaSugerida}`)));
     dnaGrid.appendChild(renderSimpleDnaCard("Ultimos cambios", snapshot.ultimosCambios.map((item) => `${item.type}: ${item.title}`)));
+  }
+
+  function starRating(value) {
+    const normalized = String(value || "").toLowerCase();
+    if (normalized.includes("alta") || normalized.includes("muy buena") || normalized.includes("estrategica")) return "★★★★★";
+    if (normalized.includes("media") || normalized.includes("seguimiento")) return "★★★★☆";
+    if (normalized.includes("baja")) return "★★★☆☆";
+    return "★★★★☆";
+  }
+
+  function renderRelationshipCard(title, subtitle, details) {
+    const card = makeElement("article", "row-card relationship-card");
+    card.appendChild(makeElement("p", "section-label", subtitle));
+    card.appendChild(makeElement("h3", null, title));
+    details.forEach(([label, value]) => {
+      const row = makeElement("p", "relationship-line");
+      row.appendChild(makeElement("strong", null, label));
+      row.appendChild(document.createTextNode(value || "Sin contexto aun."));
+      card.appendChild(row);
+    });
+    return card;
+  }
+
+  function renderCompaniesExperience() {
+    const snapshot = window.GOSOperationalDNA.buildSnapshot();
+    const cases = window.GOSCognitiveConsolidationEngine ? window.GOSCognitiveConsolidationEngine.buildCases(getEngineInput()).slice(0, 20) : [];
+    companiesGrid.innerHTML = "";
+
+    if (!snapshot.empresasEstrategicas.length) {
+      companiesGrid.appendChild(makeElement("p", "status-note", "Aun no hay relaciones empresariales consolidadas."));
+      return;
+    }
+
+    snapshot.empresasEstrategicas.slice(0, 6).forEach((company) => {
+      const activeCases = cases.filter((caso) => caso.empresa === company.nombre || (caso.proyectos || []).includes(company.nombre));
+      const lastHistory = (company.historial || []).slice(-1)[0];
+      companiesGrid.appendChild(renderRelationshipCard(company.nombre, starRating(company.confianza || company.relacion), [
+        ["Relacion: ", company.relacion || company.estado || "En construccion."],
+        ["Ultimo contacto: ", lastHistory && lastHistory.timestamp ? minutesSince(lastHistory.timestamp) : "Sin fecha clara."],
+        ["Casos activos: ", String(activeCases.length)],
+        ["Aprendizaje: ", (company.aprendizajes || company.oportunidades || ["Conviene mantener contexto antes de decidir."])[0]],
+        ["Mi recomendacion: ", activeCases[0] ? activeCases[0].recommendation : "Esperar nueva senal antes de interrumpir."]
+      ]));
+    });
+  }
+
+  function renderPeopleExperience() {
+    const snapshot = window.GOSOperationalDNA.buildSnapshot();
+    peopleGrid.innerHTML = "";
+
+    if (!snapshot.personasImportantes.length) {
+      peopleGrid.appendChild(makeElement("p", "status-note", "Aun no hay personas consolidadas en la memoria ejecutiva."));
+      return;
+    }
+
+    snapshot.personasImportantes.slice(0, 6).forEach((person) => {
+      peopleGrid.appendChild(renderRelationshipCard(person.nombre, person.empresa || "Relacion", [
+        ["Empresa: ", person.empresa || "Sin empresa asociada."],
+        ["Ultimo contacto: ", person.ultimoContacto ? minutesSince(person.ultimoContacto) : "Sin fecha clara."],
+        ["Confianza: ", person.confianza || "Sin evaluar."],
+        ["Compromisos: ", (person.compromisos || ["Sin compromisos abiertos."])[0]],
+        ["Mi recomendacion: ", person.notas || "Mantener contexto y evitar mensajes sin decision clara."]
+      ]));
+    });
+  }
+
+  function renderMemoryExperience() {
+    const snapshot = window.GOSOperationalDNA.buildSnapshot();
+    memoryJournal.innerHTML = "";
+    const learnings = snapshot.aprendizajes || [];
+    const changes = snapshot.ultimosCambios || [];
+    const entries = [
+      ...learnings.map((item) => ({
+        date: item.fecha || item.timestamp || "",
+        text: `Aprendimos que ${item.queAprendimos || item.nombre || "hay contexto nuevo para reutilizar"}.`
+      })),
+      ...changes.slice(0, 6).map((item) => ({
+        date: item.timestamp || "",
+        text: `Se actualizo ${item.type || "memoria"}: ${item.title || item.detail || "nuevo contexto"}.`
+      }))
+    ].slice(0, 8);
+
+    if (!entries.length) {
+      memoryJournal.appendChild(makeElement("p", "status-note", "La memoria todavia esta empezando a escribir su diario."));
+      return;
+    }
+
+    entries.forEach((entry) => {
+      const card = makeElement("article", "row-card memory-entry");
+      card.appendChild(makeElement("p", "section-label", entry.date ? minutesSince(entry.date) : "Memoria"));
+      card.appendChild(makeElement("p", null, entry.text));
+      memoryJournal.appendChild(card);
+    });
+  }
+
+  function renderSystemExperience() {
+    systemGrid.innerHTML = "";
+    [
+      ["Capturar informacion", "Agregar una nota, correo o conversacion manual.", "liveInput"],
+      ["Nueva idea", "Guardar una idea rapida sin clasificar.", "idea"],
+      ["Herramientas Codex", "Preparar misiones y revisar prompts.", "codex"],
+      ["Outlook y observadores", "Conexiones y estado tecnico.", "outlook"],
+      ["Proyectos y decisiones", "Ver listas completas heredadas.", "projects"],
+      ["ADN completo", "Consultar y editar memoria detallada.", "operationalDna"]
+    ].forEach(([title, description, target]) => {
+      const card = makeElement("article", "brief-card system-card");
+      card.appendChild(makeElement("h3", null, title));
+      card.appendChild(makeElement("p", null, description));
+      card.appendChild(makeAction("Abrir", "secondary-button compact", () => activatePanel(target)));
+      systemGrid.appendChild(card);
+    });
   }
 
   function renderSimpleDnaCard(title, items) {
@@ -2666,11 +2887,16 @@
   }
 
   function renderAll() {
+    renderExecutiveWelcome();
     renderBriefing();
     renderProjects();
     renderDecisions();
     renderExecutiveAgenda();
     renderExecutiveDecisionCenter();
+    renderCompaniesExperience();
+    renderPeopleExperience();
+    renderMemoryExperience();
+    renderSystemExperience();
     renderCodex();
     renderIdeas();
     renderContextSelector();
@@ -2694,6 +2920,7 @@
   document.getElementById("startDesktopObserver").addEventListener("click", startDesktopObserverPolling);
   document.getElementById("stopDesktopObserver").addEventListener("click", stopDesktopObserverPolling);
   document.getElementById("recalibrateOutlookIdentity").addEventListener("click", () => readOutlookIdentity());
+  startDay.addEventListener("click", startExecutiveDay);
   beatNow.addEventListener("click", beatNowAction);
   document.getElementById("loadDemo").addEventListener("click", loadDemo);
   document.getElementById("clearDemo").addEventListener("click", () => clearDemo());
@@ -2731,6 +2958,8 @@
   observerBus.initialize();
   observerBus.checkUpdates();
   updateSystemStatus(window.GOSLifeEngine.MorningRoutine(getEngineInput()).clock);
+  document.body.dataset.dayStarted = "false";
+  executiveWelcome.hidden = document.body.dataset.dayStarted === "true";
   renderAll();
   window.GOSLifeLoopEngine.start(getLoopContext());
   window.setInterval(updateHeartStatus, 1000);

@@ -14,12 +14,12 @@
     <link rel="apple-touch-icon" href="./icon-192.png">
     <link rel="stylesheet" href="./styles.css">
   </head>
-  <body>
+  <body data-day-started="false">
     <main class="app-shell">
       <header class="topbar">
         <div>
           <p class="eyebrow">G-OS</p>
-          <h1>Buenos dias Guillermo</h1>
+          <h1>Mi despacho</h1>
         </div>
         <div class="system-status">
           <div class="active-indicator heart-indicator"><span aria-hidden="true"></span><strong id="heartStateLabel">❤️ G-OS ACTIVO</strong></div>
@@ -28,6 +28,29 @@
           <div class="date-pill" id="todayLabel">Hoy</div>
         </div>
       </header>
+
+      <section class="executive-welcome" id="executiveWelcome" aria-label="Bienvenida ejecutiva">
+        <p class="welcome-heart" id="welcomeGreeting">❤️ Buenos dias Guillermo.</p>
+        <p class="welcome-line">Mientras no estabas ocurrieron:</p>
+        <p class="welcome-number" id="welcomeEvents">0 acontecimientos</p>
+        <p class="welcome-line">Despues de analizarlos quedaron</p>
+        <h2 id="welcomeCases">SOLO 3 Casos importantes.</h2>
+        <div class="welcome-feeling">
+          <p class="section-label">Mi sensacion actual es</p>
+          <strong id="welcomeFeeling">🟢 Tranquilo</strong>
+        </div>
+        <div class="welcome-because">
+          <p class="section-label">Porque</p>
+          <ul id="welcomeReasons"></ul>
+        </div>
+        <div class="welcome-focus">
+          <p class="section-label">Mi recomendacion es comenzar por</p>
+          <h3 id="welcomeFocus">🎯 Sin caso urgente</h3>
+          <p>Tiempo estimado</p>
+          <strong id="welcomeTime">15 minutos</strong>
+        </div>
+        <button class="primary-button start-day-button" type="button" id="startDay">Comenzar mi dia</button>
+      </section>
 
       <section class="heart-panel" aria-label="Latido G-OS">
         <div>
@@ -90,18 +113,12 @@
       </section>
 
       <nav class="module-nav" aria-label="Modulos de G-OS">
-        <button class="nav-button active" type="button" data-target="briefing">Briefing</button>
-        <button class="nav-button" type="button" data-target="liveInput">Evento</button>
-        <button class="nav-button" type="button" data-target="outlook">Outlook</button>
-        <button class="nav-button" type="button" data-target="executiveCenter">Centro Ejecutivo</button>
-        <button class="nav-button" type="button" data-target="idea">Idea</button>
-        <button class="nav-button" type="button" data-target="projects">Proyectos</button>
-        <button class="nav-button" type="button" data-target="decisions">Decisiones</button>
-        <button class="nav-button" type="button" data-target="executiveAgenda">Agenda</button>
-        <button class="nav-button" type="button" data-target="codex">Codex</button>
-        <button class="nav-button" type="button" data-target="operationalDna">ADN</button>
-        <button class="nav-button" type="button" data-target="context">Contexto</button>
-        <button class="nav-button" type="button" data-target="closeDay">Cierre</button>
+        <button class="nav-button active" type="button" data-target="briefing">❤️ Mi Dia</button>
+        <button class="nav-button" type="button" data-target="executiveCenter">📂 Casos</button>
+        <button class="nav-button" type="button" data-target="companies">🏢 Empresas</button>
+        <button class="nav-button" type="button" data-target="people">👥 Personas</button>
+        <button class="nav-button" type="button" data-target="memory">🧠 Memoria</button>
+        <button class="nav-button" type="button" data-target="system">⚙ Sistema</button>
       </nav>
 
       <section class="data-tools" aria-label="Datos locales">
@@ -220,13 +237,46 @@
 
       <section class="module-panel" id="executiveCenter" aria-labelledby="executiveCenterTitle">
         <div class="panel-heading">
-          <p class="section-label">Centro Ejecutivo</p>
-          <h2 id="executiveCenterTitle">Decidir sin leer correos</h2>
+          <p class="section-label">Mis Casos</p>
+          <h2 id="executiveCenterTitle">Lo importante, ya agrupado</h2>
           <p class="status-note" id="executiveCenterSummary">Sin conocimiento ejecutivo procesado todavia.</p>
         </div>
         <div class="executive-snapshot" id="executiveSnapshot"></div>
         <div class="brief-grid executive-kpis" id="executiveKpis"></div>
         <div class="list-stack" id="executiveDecisionCenterList"></div>
+      </section>
+
+      <section class="module-panel" id="companies" aria-labelledby="companiesTitle">
+        <div class="panel-heading">
+          <p class="section-label">Empresas</p>
+          <h2 id="companiesTitle">Relaciones activas</h2>
+        </div>
+        <div class="list-stack relationship-list" id="companiesGrid"></div>
+      </section>
+
+      <section class="module-panel" id="people" aria-labelledby="peopleTitle">
+        <div class="panel-heading">
+          <p class="section-label">Personas</p>
+          <h2 id="peopleTitle">Contexto humano</h2>
+        </div>
+        <div class="list-stack relationship-list" id="peopleGrid"></div>
+      </section>
+
+      <section class="module-panel" id="memory" aria-labelledby="memoryTitle">
+        <div class="panel-heading">
+          <p class="section-label">Mi memoria</p>
+          <h2 id="memoryTitle">Diario ejecutivo</h2>
+        </div>
+        <div class="list-stack memory-journal" id="memoryJournal"></div>
+      </section>
+
+      <section class="module-panel" id="system" aria-labelledby="systemTitle">
+        <div class="panel-heading">
+          <p class="section-label">Sistema</p>
+          <h2 id="systemTitle">Herramientas en segundo plano</h2>
+          <p class="status-note">Todo sigue disponible, pero queda fuera de la vista diaria.</p>
+        </div>
+        <div class="brief-grid" id="systemGrid"></div>
       </section>
 
       <section class="module-panel" id="idea" aria-labelledby="ideaTitle">
