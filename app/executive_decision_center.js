@@ -173,6 +173,7 @@
     const sourceState = itemState(`case-${caso.id}`);
     const riskCount = (caso.riesgos || []).length;
     const opportunityCount = (caso.oportunidades || []).length;
+    const understood = caso.queEntendi || (caso.mailInsights || [])[0] || {};
     return {
       id: `case-${caso.id}`,
       sourceId: caso.id,
@@ -184,13 +185,13 @@
       proyecto: (caso.proyectos || [])[0] || caso.empresa || "General",
       origen: "Caso consolidado",
       nivel: caso.level || levelFromScore(caso.score || 0, levelFromPriority(caso.prioridad)),
-      motivo: [
+      motivo: understood.resumen || [
         caso.tipo,
         `${(caso.evidence || []).length} evidencias`,
         `${(caso.decisiones || []).length} decisiones`,
         `${(caso.seguimientos || []).length} seguimientos`
       ].filter(Boolean).join(" | "),
-      accionSugerida: caso.recommendation || "Definir proximo paso.",
+      accionSugerida: understood.queHariaYo || understood.proximoPaso || caso.recommendation || "Definir proximo paso.",
       fechaHora: caso.ultimaActualizacion || "",
       status: sourceState.status || caso.estado || "Activo",
       raw: {

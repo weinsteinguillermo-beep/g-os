@@ -70,18 +70,30 @@
     return observation && observation.metadata ? observation.metadata.cognitive : null;
   }
 
+  function mailIntelligenceOf(observation, cognitive) {
+    if (cognitive && cognitive.mailIntelligence) return cognitive.mailIntelligence;
+    return observation && observation.metadata ? observation.metadata.mailIntelligence : null;
+  }
+
+  function meaningfulInsight(value, emptyPrefix) {
+    const textValue = String(value || "");
+    if (!textValue) return "";
+    return textValue.toLowerCase().indexOf(String(emptyPrefix || "").toLowerCase()) === 0 ? "" : textValue;
+  }
+
   function extractFromObservation(observation) {
     const cognitive = cognitiveOf(observation);
     const extract = cognitive && cognitive.extract ? cognitive.extract : {};
     const categories = cognitive && cognitive.categories ? cognitive.categories : [];
     const intents = cognitive && cognitive.intent ? cognitive.intent : [];
-    const title = extract.temaPrincipal || observation.title || "Situacion sin titulo";
+    const intelligence = mailIntelligenceOf(observation, cognitive);
+    const title = (intelligence && intelligence.casoSugerido) || extract.temaPrincipal || observation.title || "Situacion sin titulo";
     return {
       sourceId: sourceId(observation, "obs"),
       sourceType: "observacion",
       title,
-      description: observation.description || observation.bodyPreview || "",
-      empresa: extract.empresa || observation.entity || "",
+      description: (intelligence && intelligence.resumen) || observation.description || observation.bodyPreview || "",
+      empresa: (intelligence && intelligence.empresaPersonaRelacionada) || extract.empresa || observation.entity || "",
       persona: extract.persona || observation.sender || "",
       proyecto: extract.proyecto || observation.entity || "",
       priority: extract.prioridad || observation.priority || "LOW",
@@ -89,7 +101,8 @@
       sourceName: observation.source || "system",
       categories,
       intents,
-      action: extract.accionRequerida || "",
+      action: (intelligence && intelligence.proximoPasoRecomendado) || extract.accionRequerida || "",
+      mailIntelligence: intelligence,
       raw: observation
     };
   }
@@ -245,7 +258,31 @@
       score: 0,
       recommendation: "",
       lastMovement: "",
-      evidence: []
+      evidence: [],
+      mailInsights: [],
+      queEntendi: null
+    };
+  }
+
+  function insightSnapshot(intelligence, candidate) {
+    if (!intelligence) return null;
+    return {
+      sourceId: candidate.sourceId,
+      timestamp: candidate.timestamp || now(),
+      resumen: intelligence.resumen || candidate.description || "",
+      queEstaPasando: intelligence.queEstaPasando || "",
+      quienEscribe: intelligence.quienEscribe || candidate.persona || "",
+      empresaPersonaRelacionada: intelligence.empresaPersonaRelacionada || candidate.empresa || "",
+      queEsperaDeGuillermo: intelligence.queEsperaDeGuillermo || "",
+      requiereRespuesta: Boolean(intelligence.requiereRespuesta),
+      urgencia: intelligence.urgencia || "",
+      impacto: intelligence.impacto || "",
+      riesgo: meaningfulInsight(intelligence.riesgoDetectado, "No detecto"),
+      oportunidad: meaningfulInsight(intelligence.oportunidadDetectada, "No detecto"),
+      proximoPaso: intelligence.proximoPasoRecomendado || candidate.action || "",
+      queHariaYo: intelligence.queHariaYo || intelligence.proximoPasoRecomendado || candidate.action || "",
+      porqueImporta: intelligence.porqueImporta || "",
+      puedeEsperarPorque: intelligence.puedeEsperarPorque || ""
     };
   }
 
@@ -254,6 +291,7 @@
     const categories = candidate.categories || [];
     const intents = candidate.intents || [];
     const evidence = candidate.title || candidate.description || candidate.sourceType;
+    const insight = insightSnapshot(candidate.mailIntelligence, candidate);
 
     caso.empresa = caso.empresa || candidate.empresa || "";
     caso.personas = unique([...(caso.personas || []), candidate.persona]);
@@ -272,6 +310,16 @@
       }
     ].slice(-20);
     caso.evidence = unique([evidence, ...(caso.evidence || [])]).slice(0, 6);
+
+    if (insight) {
+      caso.mailInsights = [
+        insight,
+        ...(caso.mailInsights || []).filter((item) => item.sourceId !== insight.sourceId)
+      ].slice(0, 8);
+      caso.queEntendi = insight;
+      if (insight.riesgo) caso.riesgos = unique([insight.riesgo, ...(caso.riesgos || [])]).slice(0, 5);
+      if (insight.oportunidad) caso.oportunidades = unique([insight.oportunidad, ...(caso.oportunidades || [])]).slice(0, 5);
+    }
 
     if (candidate.sourceType === "seguimiento") caso.seguimientos = unique([...(caso.seguimientos || []), candidate.sourceId]);
     if (candidate.sourceType === "decision") caso.decisiones = unique([...(caso.decisiones || []), candidate.sourceId]);
@@ -295,12 +343,13 @@
     caso.level = levelLabel(caso.score);
     caso.tipo = typeFrom(caso);
     caso.ultimaActualizacion = timestamp > (caso.ultimaActualizacion || "") ? timestamp : caso.ultimaActualizacion;
-    caso.lastMovement = candidate.title || evidence;
+    caso.lastMovement = insight && insight.resumen ? insight.resumen : candidate.title || evidence;
     caso.recommendation = recommendationFor(caso);
     return caso;
   }
 
   function recommendationFor(caso) {
+    if (caso.queEntendi && caso.queEntendi.queHariaYo) return caso.queEntendi.queHariaYo;
     if ((caso.riesgos || []).length) return "Resolver riesgo y definir comunicacion antes de avanzar.";
     if ((caso.seguimientos || []).length) return "Cerrar o reprogramar los seguimientos pendientes.";
     if ((caso.oportunidades || []).length) return "Evaluar oportunidad y decidir proximo paso comercial.";

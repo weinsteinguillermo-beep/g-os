@@ -607,6 +607,7 @@
     if (result.analysis && window.GOSKnowledgeRegistry) {
       try {
         const extract = result.analysis.extract;
+        const intelligence = result.analysis.mailIntelligence || {};
         window.GOSKnowledgeRegistry.upsert("empresas", extract.empresa, {
           nombre: extract.empresa,
           relacion: extract.prioridad === "HIGH" ? "Estrategica" : "Operativa",
@@ -617,6 +618,9 @@
             id: observation.id,
             title: extract.temaPrincipal,
             description: observation.description,
+            resumenEjecutivo: intelligence.resumen,
+            proximoPaso: intelligence.proximoPasoRecomendado,
+            requiereRespuesta: intelligence.requiereRespuesta,
             type: result.analysis.categories.join(", "),
             timestamp: observation.timestamp
           }
@@ -632,6 +636,9 @@
               id: observation.id,
               title: extract.temaPrincipal,
               description: observation.description,
+              resumenEjecutivo: intelligence.resumen,
+              queEsperaDeGuillermo: intelligence.queEsperaDeGuillermo,
+              proximoPaso: intelligence.proximoPasoRecomendado,
               timestamp: observation.timestamp
             }
           }, `Cognitive Mail actualizo persona: ${extract.persona}`);
@@ -695,12 +702,17 @@
     }
 
     cognitiveMailSummary.textContent = summary.text;
+    const topResult = processed.find((result) => result.analysis.extract.prioridad === "HIGH") || processed[0] || null;
+    const insight = topResult && topResult.analysis ? topResult.analysis.mailIntelligence : null;
     [
       ["Categorias", Object.entries(summary.grouped).map(([key, value]) => `${key}: ${value}`).join(" · ") || "Sin categorias"],
       ["Oportunidades", String(summary.opportunities)],
       ["Riesgos", String(summary.risks)],
       ["Seguimientos", String(summary.followups)],
-      ["Decision clave", summary.topDecision || "Sin decision sugerida"]
+      ["Decision clave", summary.topDecision || "Sin decision sugerida"],
+      ["Este correo importa porque", insight ? insight.porqueImporta : "Sin correo entendido cognitivamente"],
+      ["Yo haria", insight ? insight.queHariaYo : "Esperar nuevo contexto"],
+      ["Respuesta", insight ? (insight.requiereRespuesta ? "Requiere respuesta" : "Puede esperar") : "Sin evaluar"]
     ].forEach(([label, value]) => {
       const card = makeElement("article", "brief-card");
       card.appendChild(makeElement("h3", null, label));
@@ -1776,16 +1788,31 @@
 
     if (isCase) {
       const raw = item.raw || {};
+      const understood = raw.queEntendi || (raw.mailInsights || [])[0] || null;
       card.classList.add("case-card");
       card.appendChild(makeElement("p", "section-label", "Caso"));
       card.appendChild(makeElement("h3", null, item.title));
-      card.appendChild(makeElement("p", null, raw.lastMovement || item.motivo || "Situacion consolidada."));
+      card.appendChild(makeElement("p", null, understood && understood.resumen ? understood.resumen : raw.lastMovement || item.motivo || "Situacion consolidada."));
       card.appendChild(makeElement("p", "muted", `Ultima actividad: ${minutesSince(item.fechaHora)}`));
       card.appendChild(makeElement("p", "muted", `Estado: ${item.nivel === "CRITICO" ? "🔴 Requiere foco" : item.nivel === "ALTO" ? "🟠 Requiere atencion" : "🟢 En seguimiento"}.`));
       card.appendChild(makeElement("p", "muted", `Mi recomendacion: ${item.accionSugerida}`));
 
       const details = makeElement("div", "case-details");
       details.hidden = true;
+      if (understood) {
+        details.appendChild(makeElement("p", "section-label", "Que entendi"));
+        const understoodList = makeElement("ul");
+        [
+          ["Resumen", understood.resumen],
+          ["Riesgo", understood.riesgo || "No detecto un riesgo concreto."],
+          ["Oportunidad", understood.oportunidad || "No detecto una oportunidad directa."],
+          ["Que haria yo", understood.queHariaYo],
+          ["Proximo paso", understood.proximoPaso]
+        ].forEach(([label, value]) => {
+          if (value) understoodList.appendChild(makeElement("li", null, `${label}: ${value}`));
+        });
+        details.appendChild(understoodList);
+      }
       [
         ["Timeline", (raw.timeline || []).slice(-5).map((entry) => `${minutesSince(entry.fecha)}: ${entry.titulo}`)],
         ["Correos relacionados", (raw.origenes || []).filter((origin) => String(origin).includes("outlook")).length ? raw.evidence || [] : []],
