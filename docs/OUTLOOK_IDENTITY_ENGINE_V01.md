@@ -2,9 +2,34 @@
 
 ## Proposito
 
-Outlook Identity Engine determina cual es la cuenta e Inbox principal de Outlook Desktop para G-OS.
+Outlook Identity Engine define la cuenta oficial que G-OS debe observar en Outlook Desktop.
 
-Su mision es evitar que el Observer procese Stores viejos, archivos PST, duplicados o bandejas historicas.
+A partir de este hotfix no existe seleccion automatica de Store.
+
+La unica cuenta observada es:
+
+`guillermo.weinstein@mercadoforestal.com.uy`
+
+## Regla principal
+
+G-OS busca exactamente el Store cuyo nombre sea:
+
+`guillermo.weinstein@mercadoforestal.com.uy`
+
+Si existe:
+
+- usa exclusivamente su Bandeja de entrada;
+- ignora cualquier otro Store;
+- ignora `documentos@mercadoforestal.com.uy`;
+- ignora Archivo;
+- ignora PST;
+- ignora cuentas compartidas.
+
+Si no existe:
+
+- muestra `Cuenta principal no encontrada.`;
+- no lee otros Stores;
+- no hace fallback.
 
 ## Restricciones
 
@@ -28,110 +53,64 @@ Su mision es evitar que el Observer procese Stores viejos, archivos PST, duplica
 
 Los dos archivos `outlook_identity.json` son runtime local y no se versionan.
 
-## Funcionamiento
+## Datos guardados
 
-El motor recorre todos los Stores de Outlook y registra:
-
-- nombre;
-- tipo;
-- ruta;
-- Inbox;
-- cantidad de correos;
-- ultimo correo;
-- fecha del ultimo correo;
-- correos hoy;
-- correos de los ultimos 7 dias;
-- correos de los ultimos 30 dias.
-
-Con esos datos calcula un `Activity Score` y elige la Inbox mas activa y confiable.
-
-## Activity Score
-
-Reglas:
-
-- `+100` si recibio correo hoy.
-- `+60` si recibio correo en la ultima hora.
-- `+40` si tuvo actividad en los ultimos 7 dias.
-- `+20` si tuvo actividad en los ultimos 30 dias.
-- `-150` si es Archivo.
-- `-120` si parece PST historico.
-- `-80` si la Inbox esta vacia.
-- `-50` si el Store parece duplicado `(1)`.
-- `-40` si no tiene actividad hace mas de 90 dias.
-
-## Resultado
-
-Guarda:
+El archivo runtime guarda:
 
 - `principalStore`;
 - `principalInbox`;
 - `principalAccount`;
-- `confidence`;
+- `observedAccount`;
+- `observedInbox`;
 - `status`;
-- `score`;
 - `lastCalibration`;
-- `activityHistory`;
-- `ranking`;
 - `selectionReason`;
+- `error`;
 - `readOnly`.
 
-## Confianza
+No guarda:
 
-- `Alta`: score alto y diferencia clara con el segundo Store.
-- `Media`: actividad suficiente pero diferencia menor.
-- `Baja`: poca actividad, Stores ambiguos o error de lectura.
+- Activity Score;
+- ranking;
+- confianza;
+- Stores alternativos;
+- motivos de seleccion automatica.
 
 ## Integracion con Observer
 
-`outlook_desktop_observer.ps1` intenta leer `desktop_observers/outlook_identity.json`.
+`outlook_desktop_observer.ps1` usa solamente:
 
-Si existe identidad valida y fue calibrada en las ultimas 12 horas:
+- Store: `guillermo.weinstein@mercadoforestal.com.uy`;
+- Carpeta: `Bandeja de entrada`.
 
-1. Busca el Store principal.
-2. Abre solo su Inbox.
-3. Procesa correos desde esa Inbox.
-4. Evita escanear todos los Stores.
-
-Si no existe identidad valida:
-
-1. Ejecuta el Identity Engine.
-2. Vuelve a intentar usar la Inbox principal.
-3. Si no puede, usa fallback al escaneo completo anterior.
+El Observer no recorre otros Stores. Si la cuenta no existe, corta el ciclo y registra el error claro.
 
 ## UI
 
-G-OS muestra la tarjeta `Outlook Identity Engine` dentro del modulo Outlook.
+G-OS muestra:
 
-La tarjeta muestra:
+- Cuenta observada;
+- Estado;
+- Inbox;
+- Ultima lectura.
 
-- cuenta utilizada;
-- Inbox utilizada;
-- score;
-- confianza;
-- motivo de seleccion;
-- ultima recalibracion;
-- estado.
-
-El boton `Recalibrar Inbox Principal` vuelve a leer el archivo runtime local. La calibracion real se ejecuta desde Windows con:
-
-`desktop_observers/START_OUTLOOK_IDENTITY_ENGINE.cmd`
+No muestra Score, Confianza ni Motivo.
 
 ## Como probar
 
 1. Abrir Outlook Desktop.
-2. Ejecutar `desktop_observers/START_OUTLOOK_IDENTITY_ENGINE.cmd`.
-3. Confirmar que se crea `desktop_observers/outlook_identity.json`.
-4. Confirmar que se crea `app/desktop_observer/outlook_identity.json`.
-5. Abrir G-OS.
-6. Ir a Outlook.
-7. Verificar la tarjeta `Outlook Identity Engine`.
-8. Ejecutar `desktop_observers/START_OUTLOOK_DESKTOP_OBSERVER.cmd`.
-9. Confirmar que el Observer usa la Inbox principal.
+2. Confirmar que la cuenta `guillermo.weinstein@mercadoforestal.com.uy` esta cargada como Store.
+3. Ejecutar `desktop_observers/START_OUTLOOK_IDENTITY_ENGINE.cmd`.
+4. Confirmar que se crea `desktop_observers/outlook_identity.json`.
+5. Confirmar que la UI muestra `Conectado`.
+6. Ejecutar `desktop_observers/START_OUTLOOK_DESKTOP_OBSERVER.cmd`.
+7. Confirmar que solo lee la Bandeja de entrada de la cuenta principal.
 
 ## Criterio de exito
 
-- G-OS detecta la Inbox correcta.
-- El Observer deja de recorrer Stores viejos o duplicados cuando existe identidad valida.
-- La UI muestra cuenta, Inbox, score, confianza y motivo.
-- La cola de Outlook conserva `identity` para diagnostico.
-- El pipeline actual sigue funcionando.
+- G-OS observa exactamente la casilla de Guillermo.
+- No procesa `documentos@mercadoforestal.com.uy`.
+- No procesa Archivo.
+- No procesa PST.
+- No recorre cuentas compartidas.
+- Si la cuenta principal no existe, muestra `Cuenta principal no encontrada.`.

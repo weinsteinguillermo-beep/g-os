@@ -308,11 +308,11 @@ body[data-pipeline-state="activo"] .pipeline-panel {
   border-color: var(--accent);
 }
 
-body[data-identity-state="estable"] .outlook-identity-card {
+body[data-identity-state="conectado"] .outlook-identity-card {
   border-color: var(--accent);
 }
 
-body[data-identity-state="inconsistente"] .outlook-identity-card {
+body[data-identity-state="error"] .outlook-identity-card {
   border-color: var(--danger);
 }
 
@@ -731,8 +731,8 @@ h3 {
   color: var(--ink);
 }
 
-.identity-status-grid p:nth-child(2),
-.identity-status-grid p:nth-child(5) {
+.identity-status-grid p:nth-child(1),
+.identity-status-grid p:nth-child(3) {
   grid-column: 1 / -1;
 }
 

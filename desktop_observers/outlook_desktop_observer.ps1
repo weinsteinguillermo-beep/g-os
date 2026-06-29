@@ -13,8 +13,7 @@ if (-not $QueuePath) {
   $QueuePath = Join-Path $RepoRoot "app\desktop_observer\outlook_desktop_queue.json"
 }
 $StatePath = Join-Path $ScriptDir "outlook_desktop_state.json"
-$IdentityPath = Join-Path $ScriptDir "outlook_identity.json"
-$IdentityEnginePath = Join-Path $ScriptDir "outlook_identity_engine.ps1"
+$TargetAccount = "guillermo.weinstein@mercadoforestal.com.uy"
 
 function Get-NowIso {
   return (Get-Date).ToUniversalTime().ToString("o")
@@ -178,71 +177,27 @@ function Get-InboxFromStore {
   return $null
 }
 
-function Test-IdentityFresh {
-  param($Identity)
-  if (-not $Identity) { return $false }
-  if (-not $Identity.principalStore -or -not $Identity.principalInbox) { return $false }
-  try {
-    $last = [datetime]$Identity.lastCalibration
-    return $last -gt (Get-Date).AddHours(-12)
-  } catch {
-    return $false
-  }
-}
+function Get-IdentityInboxContext {
+  param($Namespace)
 
-function Invoke-IdentityCalibration {
-  if (-not (Test-Path -LiteralPath $IdentityEnginePath)) { return $null }
-  try {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $IdentityEnginePath -Silent | Out-Null
-    return Read-JsonFile -Path $IdentityPath -Fallback $null
-  } catch {
-    return $null
-  }
-}
-
-function Get-StoreByIdentity {
-  param($Namespace, $Identity)
-  if (-not $Identity) { return $null }
-  foreach ($store in @($Namespace.Stores)) {
+  $store = $null
+  foreach ($candidate in @($Namespace.Stores)) {
     try {
-      if ([string]$store.DisplayName -eq [string]$Identity.principalStore) {
-        return $store
+      if ([string]$candidate.DisplayName -eq $TargetAccount) {
+        $store = $candidate
+        break
       }
     } catch {}
   }
-  return $null
-}
 
-function Get-IdentityInboxContext {
-  param($Namespace)
-  $identity = Read-JsonFile -Path $IdentityPath -Fallback $null
-  $calibrated = $false
-
-  if (-not (Test-IdentityFresh -Identity $identity)) {
-    $identity = Invoke-IdentityCalibration
-    $calibrated = $true
-  }
-
-  if (-not (Test-IdentityFresh -Identity $identity)) {
-    return [pscustomobject]@{
-      Valid = $false
-      Identity = $identity
-      Store = $null
-      Inbox = $null
-      Calibrated = $calibrated
-      Reason = "Identidad inexistente, incompleta o vencida"
-    }
-  }
-
-  $store = Get-StoreByIdentity -Namespace $Namespace -Identity $identity
   if (-not $store) {
     return [pscustomobject]@{
       Valid = $false
-      Identity = $identity
+      Identity = $null
       Store = $null
       Inbox = $null
-      Calibrated = $calibrated
-      Reason = "Store principal no encontrado en Outlook"
+      Calibrated = $false
+      Reason = "Cuenta principal no encontrada."
     }
   }
 
@@ -250,12 +205,24 @@ function Get-IdentityInboxContext {
   if (-not $inbox) {
     return [pscustomobject]@{
       Valid = $false
-      Identity = $identity
+      Identity = $null
       Store = $store
       Inbox = $null
-      Calibrated = $calibrated
-      Reason = "Inbox principal no encontrada"
+      Calibrated = $false
+      Reason = "Bandeja de entrada no encontrada para la cuenta principal."
     }
+  }
+
+  $identity = [pscustomobject]@{
+    principalStore = $TargetAccount
+    principalInbox = [string]$inbox.FolderPath
+    principalAccount = $TargetAccount
+    observedAccount = $TargetAccount
+    observedInbox = "Bandeja de entrada"
+    status = "Conectado"
+    lastCalibration = Get-NowIso
+    selectionReason = "Cuenta principal configurada."
+    readOnly = $true
   }
 
   return [pscustomobject]@{
@@ -263,8 +230,8 @@ function Get-IdentityInboxContext {
     Identity = $identity
     Store = $store
     Inbox = $inbox
-    Calibrated = $calibrated
-    Reason = "Identity Engine activo"
+    Calibrated = $false
+    Reason = "Cuenta principal configurada."
   }
 }
 
@@ -275,25 +242,20 @@ function Get-RecentInboxMail {
   $debugStores = @()
   $latestObservation = $null
   $identityContext = Get-IdentityInboxContext -Namespace $namespace
-  $storesToReview = @()
 
-  if ($identityContext.Valid) {
-    $storesToReview += [pscustomobject]@{
-      Store = $identityContext.Store
-      Inbox = $identityContext.Inbox
-      IdentityUsed = $true
-    }
-    Write-Host "Identity Engine: usando Inbox principal $($identityContext.Identity.principalInbox)"
-  } else {
-    Write-Host "Identity Engine: fallback a escaneo completo. $($identityContext.Reason)"
-    foreach ($store in @($namespace.Stores)) {
-      $storesToReview += [pscustomobject]@{
-        Store = $store
-        Inbox = $null
-        IdentityUsed = $false
-      }
-    }
+  if (-not $identityContext.Valid) {
+    Write-Host $identityContext.Reason
+    throw $identityContext.Reason
   }
+
+  Write-Host "Cuenta observada: $TargetAccount"
+  Write-Host "Inbox: $($identityContext.Identity.principalInbox)"
+
+  $storesToReview = @([pscustomobject]@{
+    Store = $identityContext.Store
+    Inbox = $identityContext.Inbox
+    IdentityUsed = $true
+  })
 
   foreach ($review in @($storesToReview)) {
     $store = $review.Store
@@ -403,12 +365,11 @@ function Get-RecentInboxMail {
         principalStore = $(if ($identityContext.Identity) { $identityContext.Identity.principalStore } else { "" })
         principalInbox = $(if ($identityContext.Identity) { $identityContext.Identity.principalInbox } else { "" })
         principalAccount = $(if ($identityContext.Identity) { $identityContext.Identity.principalAccount } else { "" })
-        confidence = $(if ($identityContext.Identity) { $identityContext.Identity.confidence } else { "" })
+        observedAccount = $TargetAccount
+        observedInbox = "Bandeja de entrada"
         status = $(if ($identityContext.Identity) { $identityContext.Identity.status } else { "" })
-        score = $(if ($identityContext.Identity) { $identityContext.Identity.score } else { 0 })
         lastCalibration = $(if ($identityContext.Identity) { $identityContext.Identity.lastCalibration } else { "" })
-        selectionReason = $(if ($identityContext.Identity) { $identityContext.Identity.selectionReason } else { $identityContext.Reason })
-        calibratedThisCycle = [bool]$identityContext.Calibrated
+        error = ""
       }
     }
   }
@@ -507,7 +468,17 @@ function Invoke-OutlookDesktopCycle {
       intervalSeconds = $IntervalSeconds
       observations = $queueObservations
       debug = $queueDebug
-      identity = if ($queueDebug) { $queueDebug.identity } else { $null }
+      identity = [ordered]@{
+        used = $false
+        principalStore = ""
+        principalInbox = ""
+        principalAccount = ""
+        observedAccount = $TargetAccount
+        observedInbox = "Bandeja de entrada"
+        status = "Error"
+        lastCalibration = Get-NowIso
+        error = $_.Exception.Message
+      }
       error = $_.Exception.Message
     })
   }

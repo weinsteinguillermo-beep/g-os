@@ -92,15 +92,13 @@
   const desktopObserverResult = document.getElementById("desktopObserverResult");
   const outlookIdentityAccount = document.getElementById("outlookIdentityAccount");
   const outlookIdentityInbox = document.getElementById("outlookIdentityInbox");
-  const outlookIdentityScore = document.getElementById("outlookIdentityScore");
-  const outlookIdentityConfidence = document.getElementById("outlookIdentityConfidence");
-  const outlookIdentityReason = document.getElementById("outlookIdentityReason");
   const outlookIdentityCalibration = document.getElementById("outlookIdentityCalibration");
   const outlookIdentityState = document.getElementById("outlookIdentityState");
   const outlookIdentityNote = document.getElementById("outlookIdentityNote");
   const desktopObserverKey = "gos:outlookDesktopObserver";
   const desktopProcessedKey = "gos:outlookDesktopObserver:processed";
   const outlookIdentityKey = "gos:outlookIdentity";
+  const fixedOutlookAccount = "guillermo.weinstein@mercadoforestal.com.uy";
   const pipelineKey = "gos:pipelineStatus";
   const localBridgeUrl = "http://localhost:17829/outlook/queue";
   const validSources = {
@@ -827,12 +825,12 @@
     return loadJson(outlookIdentityKey, {
       principalStore: "",
       principalInbox: "",
-      principalAccount: "",
-      confidence: "Sin datos",
-      status: "Aprendiendo",
-      score: 0,
+      principalAccount: fixedOutlookAccount,
+      observedAccount: fixedOutlookAccount,
+      observedInbox: "Bandeja de entrada",
+      status: "Esperando",
       lastCalibration: "",
-      selectionReason: "Sin calibracion."
+      error: ""
     });
   }
 
@@ -848,14 +846,16 @@
 
   function renderOutlookIdentity(identity) {
     const current = identity || getOutlookIdentityState();
-    outlookIdentityAccount.textContent = current.principalAccount || current.principalStore || "Sin calibrar";
-    outlookIdentityInbox.textContent = current.principalInbox || "Sin seleccionar";
-    outlookIdentityScore.textContent = current.score !== undefined ? current.score : 0;
-    outlookIdentityConfidence.textContent = current.confidence || "Sin datos";
-    outlookIdentityReason.textContent = current.selectionReason || "Sin calibracion.";
-    outlookIdentityCalibration.textContent = current.lastCalibration ? window.GOSSystemClock.formatSync(current.lastCalibration) : "Sin calibrar";
-    outlookIdentityState.textContent = current.status || "Aprendiendo";
-    document.body.dataset.identityState = String(current.status || "Aprendiendo").toLowerCase();
+    const accountMatches = current.principalAccount === fixedOutlookAccount || current.principalStore === fixedOutlookAccount;
+    const found = Boolean(accountMatches && current.principalInbox && !current.error);
+    outlookIdentityAccount.textContent = fixedOutlookAccount;
+    outlookIdentityInbox.textContent = found ? "Bandeja de entrada" : "Sin acceso";
+    outlookIdentityCalibration.textContent = found && current.lastCalibration ? window.GOSSystemClock.formatSync(current.lastCalibration) : "Sin lectura";
+    outlookIdentityState.textContent = found ? "Conectado" : "Cuenta principal no encontrada.";
+    outlookIdentityNote.textContent = found
+      ? "G-OS observa exclusivamente la cuenta principal configurada."
+      : "Cuenta principal no encontrada.";
+    document.body.dataset.identityState = found ? "conectado" : "error";
   }
 
   async function readOutlookIdentity(options) {
@@ -864,12 +864,12 @@
       const identity = await fetchJsonWithTimeout(`./desktop_observer/outlook_identity.json?ts=${Date.now()}`, 1200);
       saveOutlookIdentityState(identity);
       renderOutlookIdentity(identity);
-      if (!silent) outlookIdentityNote.textContent = "Identidad de Outlook actualizada desde runtime local.";
+      if (!silent && !(identity && identity.error)) outlookIdentityNote.textContent = "Cuenta principal verificada desde runtime local.";
       return identity;
     } catch (error) {
       renderOutlookIdentity();
       if (!silent) {
-        outlookIdentityNote.textContent = "No encontre identidad local. Ejecutar desktop_observers/START_OUTLOOK_IDENTITY_ENGINE.cmd y volver a recalibrar.";
+        outlookIdentityNote.textContent = "No encontre identidad local. Ejecutar desktop_observers/START_OUTLOOK_IDENTITY_ENGINE.cmd para verificar la cuenta principal.";
       }
       return null;
     }
